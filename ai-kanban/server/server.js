@@ -1,24 +1,23 @@
-require("dotenv").config();
-const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args)); // ✅ Fix fetch
-
+// ====================== ENV & IMPORTS ======================
+require('dotenv').config();
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const { createClient } = require("@supabase/supabase-js");
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 
+// ✅ Initialize Supabase Client
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+
 // ====================== AI via CLAUDE (OpenRouter) ======================
 async function processTaskWithClaude(taskTitle) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
         "HTTP-Referer": "http://localhost:3000",
         "X-Title": "Aether Kanban AI Agent"
       },
@@ -32,26 +31,27 @@ async function processTaskWithClaude(taskTitle) {
     });
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || "AI had no response";
-  } catch (err) {
-    console.error("Claude API Error:", err);
-    return "AI error occurred";
+    return data.choices?.[0]?.message?.content || "No response from Claude";
+  } catch (error) {
+    console.error("Claude error:", error);
+    return "AI could not process this task.";
   }
 }
 
-// ====================== DATABASE (Supabase) ======================
+// ====================== Supabase DB Helper Functions ======================
 async function getAllTasks() {
   const { data, error } = await supabase.from("tasks").select("*");
   if (error) console.error("❌ Supabase Read Error:", error);
   return data || [];
 }
 
-async function insertTask({ id, title }) {
-  const { error } = await supabase.from("tasks").insert([{ id, title, status: "todo" }]);
+async function insertTask({ title }) {
+  const { error } = await supabase.from("tasks").insert([{ title, status: "todo" }]);
   if (error) console.error("❌ Supabase Insert Error:", error);
 }
 
-async function updateTaskStatus(taskId, updates) {
+
+async function updateTask(taskId, updates) {
   const { error } = await supabase.from("tasks").update(updates).eq("id", taskId);
   if (error) console.error("❌ Supabase Update Error:", error);
 }
@@ -61,25 +61,37 @@ const app = express();
 app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "http://localhost:3000", methods: ["GET", "POST"] }
+  cors: { origin: ["http://localhost:3000", "http://127.0.0.1:3000"], methods: ["GET", "POST"] }
 });
 
+// ====================== INITIAL TASK SEED (optional) ======================
+async function seedTasks() {
+  const tasks = await getAllTasks();
+  if (tasks.length === 0) {
+    await insertTask({ title: "Create Kanban UI" });
+    await insertTask({ title: "Setup agent task system" });
+    await insertTask({ title: "Develop drag and drop" });
+    console.log("🌱 Initial tasks seeded into Supabase");
+  }
+}
+seedTasks();
+
+// ====================== SOCKET.IO EVENTS ======================
 io.on("connection", async (socket) => {
   console.log("✅ User connected:", socket.id);
 
-  const tasks = await getAllTasks();
-  socket.emit("loadTasks", tasks);
+  socket.emit("loadTasks", await getAllTasks());
 
   socket.on("addTask", async ({ id, title }) => {
-    await insertTask({ id, title });
+    await insertTask({ id, title, status: "todo" });
     io.emit("updateTasks", await getAllTasks());
     console.log(`🆕 New task added: ${title}`);
   });
 
   socket.on("taskMoved", async ({ taskId, newStatus }) => {
-    await updateTaskStatus(taskId, { status: newStatus });
+    await updateTask(taskId, { status: newStatus });
     io.emit("updateTasks", await getAllTasks());
-    console.log(`📦 Task moved to "${newStatus}"`);
+    console.log(`📦 Task "${taskId}" moved to "${newStatus}"`);
   });
 
   socket.on("disconnect", () => console.log("❌ User disconnected:", socket.id));
@@ -95,9 +107,9 @@ setInterval(async () => {
     .single();
 
   if (progressTask) {
-    console.log(`🤖 AI working on: ${progressTask.title}`);
+    console.log(`🤖 Claude working on: ${progressTask.title}`);
     const aiResponse = await processTaskWithClaude(progressTask.title);
-    await updateTaskStatus(progressTask.id, { status: "done", ai_output: aiResponse });
+    await updateTask(progressTask.id, { status: "done", ai_output: aiResponse });
   } else {
     let { data: todoTask } = await supabase
       .from("tasks")
@@ -106,8 +118,8 @@ setInterval(async () => {
       .limit(1)
       .single();
     if (todoTask) {
-      console.log(`🚀 AI starting task: ${todoTask.title}`);
-      await updateTaskStatus(todoTask.id, { status: "progress" });
+      console.log(`🚀 Claude starting task: ${todoTask.title}`);
+      await updateTask(todoTask.id, { status: "progress" });
     }
   }
 
