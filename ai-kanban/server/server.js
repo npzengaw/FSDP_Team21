@@ -64,17 +64,6 @@ const io = new Server(server, {
   cors: { origin: ["http://localhost:3000", "http://127.0.0.1:3000"], methods: ["GET", "POST"] }
 });
 
-// ====================== INITIAL TASK SEED (optional) ======================
-async function seedTasks() {
-  const tasks = await getAllTasks();
-  if (tasks.length === 0) {
-    await insertTask({ title: "Create Kanban UI" });
-    await insertTask({ title: "Setup agent task system" });
-    await insertTask({ title: "Develop drag and drop" });
-    console.log("🌱 Initial tasks seeded into Supabase");
-  }
-}
-seedTasks();
 
 // ====================== SOCKET.IO EVENTS ======================
 io.on("connection", async (socket) => {
