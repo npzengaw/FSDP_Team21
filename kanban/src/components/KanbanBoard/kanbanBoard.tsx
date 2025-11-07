@@ -1,40 +1,94 @@
-import React, { useState } from 'react';
-import './kanbanBoard.css';
+import { useEffect, useState } from "react";
+import { PostgrestError } from "@supabase/supabase-js";
+import "./kanbanBoard.css";
+import { supabase } from "../../lib/supabaseClient";
+
+// ✅ Define task type based on your database
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: "todo" | "progress" | "done";
+  hasAttachment?: boolean;
+  hasComments?: boolean;
+  hasSubtask?: boolean;
+  subtaskProgress?: string;
+}
 
 const KanbanBoard = () => {
-  const [tasks] = useState({
-    todo: [
-      { id: 1, title: 'Task Title', description: 'Task description goes here', hasAttachment: true, hasComments: true },
-      { id: 2, title: 'Task Title', description: 'Task description goes here', hasAttachment: false, hasComments: false },
-      { id: 3, title: 'Task Title', description: 'Task description goes here', hasAttachment: false, hasComments: false },
-      { id: 4, title: 'Task Title', description: 'Task description goes here', hasAttachment: false, hasComments: false },
-      { id: 5, title: 'Task Title', description: 'Task description goes here', hasAttachment: false, hasComments: false }
-    ],
-    inProgress: [
-      { id: 6, title: 'Task Title', description: 'Task description goes here', hasAttachment: true, hasComments: true, hasSubtask: true, subtaskProgress: '1/2' },
-      { id: 7, title: 'Task Title', description: 'Task description goes here', hasAttachment: true, hasComments: true },
-      { id: 8, title: 'Task Title', description: 'Task description goes here', hasAttachment: true, hasComments: true }
-    ],
-    completed: [
-      { id: 9, title: 'Task Title', description: 'Task description goes here', hasAttachment: false, hasComments: false },
-      { id: 10, title: 'Task Title', description: 'Task description goes here', hasAttachment: false, hasComments: false },
-      { id: 11, title: 'Task Title', description: 'Task description goes here', hasAttachment: false, hasComments: false }
-    ]
+  const [tasks, setTasks] = useState<{
+    todo: Task[];
+    progress: Task[];
+    done: Task[];
+  }>({
+    todo: [],
+    progress: [],
+    done: [],
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showMenu, setShowMenu] = useState<string | null>(null);
 
-  const [showMenu, setShowMenu] = useState<number | null>(null);
+  // ✅ Fetch tasks from Supabase
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        setLoading(true);
+        const { data, error }: { data: Task[] | null; error: PostgrestError | null } =
+          await supabase.from("tasks").select("*");
 
+        if (error) throw error;
+
+        const grouped = {
+          todo: data?.filter((t) => t.status === "todo") || [],
+          progress: data?.filter((t) => t.status === "progress") || [],
+          done: data?.filter((t) => t.status === "done") || [],
+        };
+
+        setTasks(grouped);
+      } catch (err: any) {
+        console.error("Fetch error:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTasks();
+
+    // ✅ Real-time updates (safe cleanup)
+    const channel = supabase
+      .channel("tasks-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks" },
+        () => fetchTasks()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  if (loading) return <div className="loading">Loading tasks...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
+
+  // ✅ Render Board
   return (
     <div className="kanban-container">
+      {/* Sidebar */}
       <div className="sidebar">
         <div className="logo">
           <div className="logo-placeholder"></div>
         </div>
-        
+
         <div className="tasks-section">
           <div className="tasks-header">
             <span>Tasks</span>
-            <span className="task-count">16</span>
+            <span className="task-count">
+              {tasks.todo.length + tasks.progress.length + tasks.done.length}
+            </span>
           </div>
         </div>
 
@@ -47,6 +101,7 @@ const KanbanBoard = () => {
         </div>
       </div>
 
+      {/* Main Content */}
       <div className="main-content">
         <div className="header">
           <div className="welcome">Welcome Back</div>
@@ -59,120 +114,92 @@ const KanbanBoard = () => {
           </div>
         </div>
 
+        {/* Board */}
         <div className="board">
-          <div className="column">
-            <div className="column-header">
-              <div className="column-title">To Do</div>
-            </div>
-            <div className="tasks-list">
-              {tasks.todo.map((task) => (
-                <div key={task.id} className="task-card">
-                  <div className="task-header">
-                    <div className="task-title-bar"></div>
-                    <button className="task-menu" onClick={() => setShowMenu(showMenu === task.id ? null : task.id)}>⋮</button>
-                    {showMenu === task.id && (
-                      <div className="menu-dropdown">
-                        <div className="menu-item">Edit</div>
-                        <div className="menu-item">Delete</div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="task-description">Task description placeholder</div>
-                  <div className="task-footer">
-                    <div className="task-icons">
-                      {task.hasAttachment && <span className="icon">📎</span>}
-                      {task.hasComments && <span className="icon">💬</span>}
-                    </div>
-                    <div className="task-actions">
-                      <button className="action-btn">+</button>
-                      <div className="avatar"></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <button className="add-task-btn">
-                Add Task <span className="plus-icon">+</span>
-              </button>
-            </div>
-          </div>
+          {/* ✅ To Do */}
+          <KanbanColumn
+            title="To Do"
+            tasks={tasks.todo}
+            showMenu={showMenu}
+            setShowMenu={setShowMenu}
+          />
 
-          <div className="column">
-            <div className="column-header">
-              <div className="column-title">In Progress</div>
-            </div>
-            <div className="tasks-list">
-              {tasks.inProgress.map((task) => (
-                <div key={task.id} className="task-card">
-                  {task.hasSubtask && (
-                    <div className="subtask-overlay">
-                      <div className="subtask-title">Subtask Name</div>
-                    </div>
-                  )}
-                  <div className="task-header">
-                    <div className="task-title-bar"></div>
-                    <button className="task-menu" onClick={() => setShowMenu(showMenu === task.id ? null : task.id)}>⋮</button>
-                    {showMenu === task.id && (
-                      <div className="menu-dropdown">
-                        <div className="menu-item">Edit</div>
-                        <div className="menu-item">Delete</div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="task-description">Task description placeholder</div>
-                  {task.hasSubtask && (
-                    <div className="subtask-progress">
-                      <span className="icon">☑</span>
-                      <span>{task.subtaskProgress}</span>
-                    </div>
-                  )}
-                  <div className="task-footer">
-                    <div className="task-icons">
-                      {task.hasAttachment && <span className="icon">📎</span>}
-                      {task.hasComments && <span className="icon">💬</span>}
-                    </div>
-                    <div className="task-actions">
-                      <button className="action-btn">+</button>
-                      <div className="avatar"></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* ✅ In Progress */}
+          <KanbanColumn
+            title="In Progress"
+            tasks={tasks.progress}
+            showMenu={showMenu}
+            setShowMenu={setShowMenu}
+          />
 
-          <div className="column">
-            <div className="column-header">
-              <div className="column-title">Completed</div>
-            </div>
-            <div className="tasks-list">
-              {tasks.completed.map((task) => (
-                <div key={task.id} className="task-card">
-                  <div className="task-header">
-                    <div className="task-title-bar"></div>
-                    <button className="task-menu" onClick={() => setShowMenu(showMenu === task.id ? null : task.id)}>⋮</button>
-                    {showMenu === task.id && (
-                      <div className="menu-dropdown">
-                        <div className="menu-item">Edit</div>
-                        <div className="menu-item">Delete</div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="task-description">Task description placeholder</div>
-                  <div className="task-footer">
-                    <div className="task-icons">
-                      {task.hasAttachment && <span className="icon">📎</span>}
-                      {task.hasComments && <span className="icon">💬</span>}
-                    </div>
-                    <div className="task-actions">
-                      <button className="action-btn">+</button>
-                      <div className="avatar"></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* ✅ Completed */}
+          <KanbanColumn
+            title="Completed"
+            tasks={tasks.done}
+            showMenu={showMenu}
+            setShowMenu={setShowMenu}
+          />
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ✅ Reusable Column Component
+const KanbanColumn = ({
+  title,
+  tasks,
+  showMenu,
+  setShowMenu,
+}: {
+  title: string;
+  tasks: Task[];
+  showMenu: string | null;
+  setShowMenu: React.Dispatch<React.SetStateAction<string | null>>;
+}) => {
+  return (
+    <div className="column">
+      <div className="column-header">
+        <div className="column-title">{title}</div>
+      </div>
+      <div className="tasks-list">
+        {tasks.map((task) => (
+          <div key={task.id} className="task-card">
+            <div className="task-header">
+              <div className="task-title-bar"></div>
+              <button
+                className="task-menu"
+                onClick={() => setShowMenu(showMenu === task.id ? null : task.id)}
+              >
+                ⋮
+              </button>
+              {showMenu === task.id && (
+                <div className="menu-dropdown">
+                  <div className="menu-item">Edit</div>
+                  <div className="menu-item">Delete</div>
+                </div>
+              )}
+            </div>
+
+            <div className="task-title">{task.title || "Untitled Task"}</div>
+            <div className="task-description">{task.description || "No description"}</div>
+
+            <div className="task-footer">
+              <div className="task-icons">
+                {task.hasAttachment && <span className="icon">📎</span>}
+                {task.hasComments && <span className="icon">💬</span>}
+              </div>
+              <div className="task-actions">
+                <button className="action-btn">+</button>
+                <div className="avatar"></div>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <button className="add-task-btn">
+          Add Task <span className="plus-icon">+</span>
+        </button>
       </div>
     </div>
   );
