@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
+import "./App.css";
+import LoginPage from "./LoginPage";
 import { supabase } from "./supabaseClient.js";
 import KanbanBoard from "./KanbanBoard";
 import {
@@ -8,7 +10,8 @@ import {
   getMembers,
   kickMember,
 } from "./organisation.js";
-import { signUpUser } from "./Auth.js";
+import { signUpUser, signIn, signOut, getCurrentUser, getCurrentProfile } from "./Auth.js";
+
 
 function App() {
   const [user, setUser] = useState(null);
@@ -210,14 +213,24 @@ function App() {
   };
 
   // --- JSX ---
-  if (!user)
-    return (
-      <div style={{ padding: "2rem" }}>
-        <h1>AI Kanban Demo</h1>
-        <button onClick={handleSignup}>Sign Up</button>
-        <button onClick={handleLogin}>Login</button>
-      </div>
-    );
+if (!user)
+  return (
+    <LoginPage
+      onLogin={async (email, password) => {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) return alert(error.message);
+        setUser(data.user);
+        loadCurrentUser();
+      }}
+      onSignup={async (email, password) => {
+        if (!email || !password) return alert("Please fill in both fields.");
+        const { data, error } = await signUpUser(email, password);
+        if (error) return alert(error.message);
+        alert("Account created! Please verify your email before logging in.");
+      }}
+    />
+  );
+
 
   if (isSettingUpProfile)
     return (
