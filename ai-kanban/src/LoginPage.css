@@ -32,21 +32,6 @@ html, body, #root { height: 100%; margin: 0; padding: 0; }
 }
 
 
-/* WRAPPER + BACKGROUND */
-.auth-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at 30% 20%, rgba(117,91,234,0.15), transparent 70%),
-              radial-gradient(circle at 70% 80%, rgba(245,197,66,0.12), transparent 70%),
-              var(--bg-1);
-  min-height: 100vh;
-  color: var(--text);
-  overflow: hidden;
-}
-
-
 /* Floating orbs for motion */
 .bg-orb {
   position: absolute;
@@ -468,11 +453,9 @@ a.btn.btn--outline {
   display: flex;
   align-items: center;
   justify-content: center;
-
-  /* REAL MOUNTAIN BACKGROUND */
-  background: url(/mountain.jpg) center/cover no-repeat;
-
+  background: url("./assets/mountain.jpg") center/cover no-repeat;
   min-height: 100vh;
   color: var(--text);
   overflow: hidden;
 }
+
