@@ -434,5 +434,21 @@ html, body, #root { height: 100%; margin: 0; padding: 0; }
   max-width: 360px; /* ensures perfect alignment */
 }
 
+/* Fix alignment for Create Account button */
+.btn--outline {
+  width: 100%;
+  max-width: 360px;   /* same as inputs */
+  box-sizing: border-box;
+}
 
+/* Ensure the outer Link behaves like a block button */
+a.btn.btn--outline {
+  display: block;
+  text-align: center;
+}
+
+/* Remove underline from Create Account link button */
+a.btn.btn--outline {
+  text-decoration: none !important;
+}
 

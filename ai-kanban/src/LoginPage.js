@@ -1,28 +1,32 @@
 import React, { useState, useEffect } from "react";
 import "./LoginPage.css";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "./supabaseClient"; // ✅ Add this
+import { supabase } from "./supabaseClient";
 
+// ================================
+// ✅ Updated Kanban-focused slides
+// ================================
 const slides = [
   {
-    img: "https://cdn-icons-png.flaticon.com/512/889/889140.png",
-    title: "Organize Tasks Efficiently",
-    desc: "Create boards, columns, and cards to manage your work seamlessly.",
+    img: "/kanban1.svg",
+    title: "Visualize Your Workflow",
+    desc: "Kanban boards help you see tasks clearly across every stage.",
   },
   {
-    img: "https://cdn-icons-png.flaticon.com/512/1209/1209234.png",
-    title: "Collaborate With Your Team",
-    desc: "Share projects, assign tasks, and stay connected with teammates.",
+    img: "/kanban1.svg",
+    title: "Stay Organized",
+    desc: "Columns and cards let you structure work your way.",
   },
   {
-    img: "https://cdn-icons-png.flaticon.com/512/1041/1041916.png",
-    title: "Track Progress Intelligently",
-    desc: "Visualize productivity trends and milestones with clarity.",
+    img: "/kanban1.svg",
+    title: "Track Progress Easily",
+    desc: "See progress move from left to right with clarity.",
   },
 ];
 
+
 function LoginPage() {
-  const navigate = useNavigate(); // ✅ added
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -42,15 +46,14 @@ function LoginPage() {
 
   // Auto slideshow
   useEffect(() => {
-    const interval = setInterval(() => {
-      setSlideIndex((prev) => (prev + 1) % slides.length);
-    }, 4500);
+    const interval = setInterval(
+      () => setSlideIndex((prev) => (prev + 1) % slides.length),
+      4500
+    );
     return () => clearInterval(interval);
   }, []);
 
-  // ============================
-  // ✅ INTERNAL LOGIN LOGIC
-  // ============================
+  // Login Logic
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -73,7 +76,6 @@ function LoginPage() {
       return;
     }
 
-    // redirect to dashboard
     navigate("/organisations");
   };
 
@@ -94,7 +96,7 @@ function LoginPage() {
       <div className="auth-card hover-float">
         {/* Left: Login */}
         <div className="auth-left">
-          <h1 className="brand">AI Kanban</h1>
+          <h1 className="brand">Kiro</h1>
           <p className="subtitle">Sign in to your workspace</p>
 
           <form onSubmit={handleSubmit} className="form">
@@ -154,9 +156,13 @@ function LoginPage() {
               <p>{slide.desc}</p>
             </div>
           ))}
+
           <div className="dots">
             {slides.map((_, i) => (
-              <span key={i} className={`dot ${i === slideIndex ? "active" : ""}`}></span>
+              <span
+                key={i}
+                className={`dot ${i === slideIndex ? "active" : ""}`}
+              ></span>
             ))}
           </div>
         </div>
