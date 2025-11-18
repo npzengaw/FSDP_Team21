@@ -11,10 +11,9 @@ import { supabase } from "./supabaseClient";
 export default function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
 
   // -----------------------------
-  // Load profile helper
+  // Load profile
   // -----------------------------
   const loadProfile = async (userId) => {
     if (!userId) {
@@ -22,13 +21,11 @@ export default function App() {
       return;
     }
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .maybeSingle();
-
-    if (error) console.error("Profile load error:", error);
 
     setProfile(data || null);
   };
@@ -42,34 +39,32 @@ export default function App() {
       setUser(data.user);
 
       if (data.user) {
-        await loadProfile(data.user.id);
+        loadProfile(data.user.id);
       }
-
-      setLoading(false);
     };
 
     init();
 
-    // Listen for login / logout / token refresh
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         const currentUser = session?.user || null;
         setUser(currentUser);
 
         if (currentUser) {
-          await loadProfile(currentUser.id);
+          loadProfile(currentUser.id);
         } else {
           setProfile(null);
         }
       }
     );
 
-    return () => {
-      listener.subscription.unsubscribe();
-    };
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  if (loading) return <p>Loading...</p>;
+  // -----------------------------
+  // NO MORE LOADING SCREEN
+  // App renders instantly
+  // -----------------------------
 
   return (
     <BrowserRouter>
