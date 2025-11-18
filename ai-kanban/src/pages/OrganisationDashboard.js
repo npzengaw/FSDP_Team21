@@ -14,7 +14,6 @@ import {
 export default function OrganisationDashboard({ user, profile }) {
   const navigate = useNavigate();
 
-  // SAFE DISPLAY NAME
   const displayName = profile?.username || "User";
   const [organisations, setOrganisations] = useState([]);
   const [members, setMembers] = useState({});
@@ -140,13 +139,10 @@ export default function OrganisationDashboard({ user, profile }) {
 
   return (
     <div style={styles.page}>
-
-      {/* Logout */}
       <button onClick={handleLogout} style={styles.logoutBtn}>
         Logout
       </button>
 
-      {/* Profile */}
       <div style={styles.profile}></div>
 
       <h1 style={styles.title}>
@@ -167,8 +163,6 @@ export default function OrganisationDashboard({ user, profile }) {
         <button style={styles.filterBtn}>⏳</button>
       </div>
 
-      <h1>Welcome, {profile?.username}</h1>
-
       {/* CREATE */}
       <div style={{ marginTop: "2rem" }}>
         <h2>Create Organisation</h2>
@@ -183,7 +177,7 @@ export default function OrganisationDashboard({ user, profile }) {
         </button>
       </div>
 
-      {/* JOIN ORG */}
+      {/* JOIN */}
       <h2 style={styles.sectionHeader}>Join Organisation</h2>
       <div style={styles.row}>
         <input
@@ -210,6 +204,7 @@ export default function OrganisationDashboard({ user, profile }) {
         <div key={org.id} style={styles.card}>
           <div style={styles.cardLeft}>
             <h3 style={styles.cardTitle}>{org.name}</h3>
+
             <p style={styles.pin}>
               <strong>PIN:</strong> {org.pin}
             </p>
@@ -222,36 +217,36 @@ export default function OrganisationDashboard({ user, profile }) {
                 Open Board →
               </button>
 
-            {/* Leave */}
-            {org.owner_id !== user.id && (
-              <button
-                onClick={() => handleLeave(org.id)}
-                style={{
-                  marginLeft: "10px",
-                  background: "#d9534f",
-                  color: "white",
-                  padding: "6px 10px",
-                }}
-              >
-                Leave
-              </button>
-            )}
+              {org.owner_id !== user.id && (
+                <button
+                  onClick={() => handleLeave(org.id)}
+                  style={{
+                    marginLeft: "10px",
+                    background: "#d9534f",
+                    color: "white",
+                    padding: "6px 10px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  Leave
+                </button>
+              )}
 
-            {/* DELETE ORG (OWNER ONLY) */}
-            {org.owner_id === user.id && (
-              <button
-                onClick={() => handleDeleteOrg(org.id)}
-                style={{
-                  marginLeft: "10px",
-                  background: "#b30000",
-                  color: "white",
-                  padding: "6px 10px",
-                  borderRadius: "4px",
-                }}
-              >
-                Delete Org
-              </button>
-            )}
+              {org.owner_id === user.id && (
+                <button
+                  onClick={() => handleDeleteOrg(org.id)}
+                  style={{
+                    marginLeft: "10px",
+                    background: "#b30000",
+                    color: "white",
+                    padding: "6px 10px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  Delete Org
+                </button>
+              )}
+            </div>
           </div>
         </div>
       ))}
@@ -260,9 +255,8 @@ export default function OrganisationDashboard({ user, profile }) {
 }
 
 /* ============================================================
-   💅 UPDATED STYLES (input smaller + cards moved left)
+   STYLES
    ============================================================ */
-
 const styles = {
   page: {
     padding: "2.5rem",
@@ -304,7 +298,6 @@ const styles = {
     boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
   },
 
-  /* SEARCH BAR */
   searchContainer: {
     display: "flex",
     gap: "10px",
@@ -343,7 +336,6 @@ const styles = {
     boxShadow: "0 3px 10px rgba(0,0,0,0.06)",
   },
 
-  /* SECTION HEADERS */
   sectionHeader: {
     fontSize: "1.35rem",
     fontWeight: 700,
@@ -351,7 +343,6 @@ const styles = {
     marginTop: "1rem",
   },
 
-  /* INPUT ROW — made smaller + aligned left */
   row: {
     display: "flex",
     gap: "10px",
@@ -383,27 +374,6 @@ const styles = {
     boxShadow: "0 4px 12px rgba(105,92,235,0.25)",
   },
 
-  deleteBtn: {
-    background: "#E45050",
-    border: "none",
-    padding: "11px 18px",
-    borderRadius: "10px",
-    color: "#fff",
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-
-  leaveBtn: {
-    background: "#F2A642",
-    border: "none",
-    padding: "11px 18px",
-    borderRadius: "10px",
-    color: "#fff",
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-
-  /* WORKSPACE CARD — moved left */
   card: {
     background: "#fff",
     padding: "1.6rem 1.8rem",
@@ -413,33 +383,16 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: "1.5rem",
-
-    maxWidth: "900px",   // smaller
-    marginLeft: "0",     // pushed left
+    maxWidth: "900px",
+    marginLeft: "0",
     marginRight: "auto",
   },
 
   cardLeft: { flex: 1, paddingRight: "1rem" },
-
-  cardRight: {
-    flex: 1,
-    paddingLeft: "2rem",
-    borderLeft: "1px solid #EEE",
-  },
 
   cardTitle: { margin: 0, fontSize: "1.25rem", fontWeight: 700 },
 
   pin: { marginTop: "4px", marginBottom: "1rem", color: "#444" },
 
   buttonRow: { display: "flex", gap: "12px", marginTop: "8px" },
-
-  membersHeader: {
-    fontWeight: 700,
-    marginBottom: "6px",
-  },
-
-  memberItem: {
-    marginBottom: "5px",
-    color: "#444",
-  },
 };
