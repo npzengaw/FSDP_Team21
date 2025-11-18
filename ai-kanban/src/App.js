@@ -13,19 +13,36 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Load user + profile
+  // -----------------------------
+  // Load profile helper
+  // -----------------------------
+  const loadProfile = async (userId) => {
+    if (!userId) {
+      setProfile(null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error) console.error("Profile load error:", error);
+
+    setProfile(data || null);
+  };
+
+  // -----------------------------
+  // Initial load + session listener
+  // -----------------------------
   useEffect(() => {
     const init = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);
 
       if (data.user) {
-        const { data: p } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", data.user.id)
-          .maybeSingle();
-        setProfile(p);
+        await loadProfile(data.user.id);
       }
 
       setLoading(false);
@@ -33,11 +50,23 @@ export default function App() {
 
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user || null);
-    });
+    // Listen for login / logout / token refresh
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        const currentUser = session?.user || null;
+        setUser(currentUser);
 
-    return () => listener.subscription.unsubscribe();
+        if (currentUser) {
+          await loadProfile(currentUser.id);
+        } else {
+          setProfile(null);
+        }
+      }
+    );
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   if (loading) return <p>Loading...</p>;
@@ -45,7 +74,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-
         {/* LOGIN */}
         <Route
           path="/"

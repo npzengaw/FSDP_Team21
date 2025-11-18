@@ -14,6 +14,8 @@ import {
 export default function OrganisationDashboard({ user, profile }) {
   const navigate = useNavigate();
 
+  // SAFE DISPLAY NAME
+  const displayName = profile?.username || "User";
   const [organisations, setOrganisations] = useState([]);
   const [members, setMembers] = useState({});
   const [loading, setLoading] = useState(true);
@@ -150,7 +152,8 @@ export default function OrganisationDashboard({ user, profile }) {
         </button>
       </div>
 
-      <h1>Welcome, {profile?.username}</h1>
+      {/* WELCOME */}
+      <h1>Welcome, {displayName}</h1>
 
       {/* CREATE */}
       <div style={{ marginTop: "2rem" }}>
@@ -221,7 +224,6 @@ export default function OrganisationDashboard({ user, profile }) {
               Open Board →
             </button>
 
-            {/* Leave */}
             {org.owner_id !== user.id && (
               <button
                 onClick={() => handleLeave(org.id)}
@@ -236,7 +238,6 @@ export default function OrganisationDashboard({ user, profile }) {
               </button>
             )}
 
-            {/* DELETE ORG (OWNER ONLY) */}
             {org.owner_id === user.id && (
               <button
                 onClick={() => handleDeleteOrg(org.id)}

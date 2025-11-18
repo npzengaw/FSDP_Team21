@@ -13,39 +13,33 @@ export default function OrgBoardPage({ user, profile }) {
   const [members, setMembers] = useState([]);
   const [orgInfo, setOrgInfo] = useState(null);
 
-  // ============================================================
-  // LOAD ORG INFO + MEMBERS
-  // ============================================================
+  // SAFE DISPLAY NAME
+  const displayName = profile?.username || "User";
+  // LOAD ORG + MEMBERS
   useEffect(() => {
     if (!orgId || !user) return;
 
     const load = async () => {
-      // Load organisation details
-      const { data: org, error: orgError } = await supabase
+      const { data: org } = await supabase
         .from("organisations")
         .select("*")
         .eq("id", orgId)
         .maybeSingle();
 
-      if (orgError) console.error("Org load error:", orgError);
       setOrgInfo(org);
 
-      // Load members with usernames
-      const { data: mem, error: memError } = await supabase
+      const { data: mem } = await supabase
         .from("organisation_members")
         .select("*, profiles(username)")
         .eq("organisation_id", orgId);
 
-      if (memError) console.error("Members load error:", memError);
       setMembers(mem || []);
     };
 
     load();
   }, [orgId, user]);
 
-  // ============================================================
-  // SOCKET CONNECTION
-  // ============================================================
+  // SOCKET
   useEffect(() => {
     if (!user || !orgId) return;
 
@@ -54,7 +48,7 @@ export default function OrgBoardPage({ user, profile }) {
       query: {
         userId: user.id,
         orgId: orgId,
-        board: "personal", // default board for page load
+        board: "personal",
       },
     });
 
@@ -64,34 +58,17 @@ export default function OrgBoardPage({ user, profile }) {
       console.log("🟢 Socket connected:", s.id);
     });
 
-    s.on("loadTasks", (taskList) => {
-      console.log("🔥 [socket] loadTasks:", taskList);
-      setTasks(taskList || []);
-    });
-
-    s.on("updateTasks", (taskList) => {
-      console.log("🔥 [socket] updateTasks:", taskList);
-      setTasks(taskList || []);
-    });
-
-    s.on("boardSwitched", (taskList) => {
-      console.log("📌 [socket] boardSwitched:", taskList);
-      setTasks(taskList || []);
-    });
+    s.on("loadTasks", (taskList) => setTasks(taskList || []));
+    s.on("updateTasks", (taskList) => setTasks(taskList || []));
+    s.on("boardSwitched", (taskList) => setTasks(taskList || []));
 
     s.on("disconnect", () => {
       console.log("🔴 Socket disconnected");
     });
 
-    return () => {
-      console.log("🔴 Cleaning up socket...");
-      s.disconnect();
-    };
+    return () => s.disconnect();
   }, [orgId, user]);
 
-  // ============================================================
-  // RENDER
-  // ============================================================
   return (
     <div style={{ padding: "1.5rem" }}>
       <button
@@ -108,10 +85,8 @@ export default function OrgBoardPage({ user, profile }) {
 
       <h1>{orgInfo?.name || "Workspace"}</h1>
       <p>
-        Logged in as: <strong>{profile?.username}</strong>
+        Logged in as: <strong>{displayName}</strong>
       </p>
-
-      {/* MEMBERS LIST */}
       <div style={{ margin: "1rem 0" }}>
         <h3>Members</h3>
         <ul>
@@ -127,7 +102,6 @@ export default function OrgBoardPage({ user, profile }) {
 
       <hr />
 
-      {/* KANBAN BOARD */}
       {socket ? (
         <KanbanBoard socket={socket} tasks={tasks} user={user} />
       ) : (

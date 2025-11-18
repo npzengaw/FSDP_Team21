@@ -1,4 +1,3 @@
-
 require("dotenv").config();
 const fetch = (...args) =>
   import("node-fetch").then(({ default: fetch }) => fetch(...args));
@@ -13,7 +12,6 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
-// ====================== ENV & IMPORTS ======================
 
 // ====================== AI via OpenRouter ======================
 async function processTaskWithClaude(taskTitle) {
@@ -31,14 +29,8 @@ async function processTaskWithClaude(taskTitle) {
         body: JSON.stringify({
           model: "anthropic/claude-3-haiku",
           messages: [
-            {
-              role: "system",
-              content: "You are an expert AI coding agent. Be concise.",
-            },
-            {
-              role: "user",
-              content: `Task: ${taskTitle}. Provide a short progress update.`,
-            },
+            { role: "system", content: "You are an expert AI coding agent. Be concise." },
+            { role: "user", content: `Task: ${taskTitle}. Provide a short progress update.` },
           ],
         }),
       }
@@ -54,47 +46,47 @@ async function processTaskWithClaude(taskTitle) {
 }
 
 // ====================== TASK HELPERS ======================
-// NOTE: we keep "board" logic here and filter using is_main_board
 async function getTasks(socket) {
   const { orgId, userId, board } = socket;
-  if (!orgId) {
-    console.error("getTasks called without orgId");
-    return [];
-  }
+
+  const baseSelect = `
+    id,
+    title,
+    status,
+    organisation_id,
+    user_id,
+    is_main_board,
+    created_at,
+    updated_at,
+    ai_output,
+    ai_agent,
+    profiles:user_id (
+      username
+    )
+  `;
 
   try {
-    // MAIN BOARD = org-wide tasks (is_main_board = true)
+    // MAIN BOARD (organisation wide)
     if (board === "main") {
       const { data, error } = await supabase
         .from("tasks")
-        .select("*")
+        .select(baseSelect)
         .eq("organisation_id", orgId)
         .eq("is_main_board", true);
 
-      if (error) {
-        console.error("getTasks (main) error:", error);
-        return [];
-      }
+      if (error) console.error("getTasks (main) error:", error);
       return data || [];
     }
 
-    // PERSONAL BOARD = tasks owned by this user (is_main_board = false)
-    if (!userId) {
-      console.error("getTasks (personal) missing userId");
-      return [];
-    }
-
+    // PERSONAL BOARD (user specific)
     const { data, error } = await supabase
       .from("tasks")
-      .select("*")
+      .select(baseSelect)
       .eq("organisation_id", orgId)
       .eq("user_id", userId)
       .eq("is_main_board", false);
 
-    if (error) {
-      console.error("getTasks (personal) error:", error);
-      return [];
-    }
+    if (error) console.error("getTasks (personal) error:", error);
     return data || [];
   } catch (err) {
     console.error("getTasks unexpected error:", err);
@@ -112,9 +104,10 @@ const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: ["http://localhost:3000"],
     methods: ["GET", "POST"],
   },
 });
@@ -127,23 +120,18 @@ io.on("connection", async (socket) => {
   socket.userId = userId;
   socket.board = board || "personal";
 
-  // Join board-level room
   socket.join(`${socket.orgId}:${socket.board}`);
 
-  console.log(
-    `🔗 User ${socket.id} joined Org ${socket.orgId}, Board = ${socket.board}`
-  );
+  console.log(`🔗 User ${socket.id} joined Org ${socket.orgId}, Board = ${socket.board}`);
 
-  // initial load
+  // Initial load
   socket.emit("loadTasks", await getTasks(socket));
 
-  // ========= SWITCH BOARD =========
+  // Board switch
   socket.on("switchBoard", async ({ board }) => {
     if (!board) return;
 
-    console.log(
-      `🔀 ${socket.id} switching board ${socket.board} -> ${board}`
-    );
+    console.log(`🔀 ${socket.id} switching board ${socket.board} -> ${board}`);
 
     socket.leave(`${socket.orgId}:${socket.board}`);
     socket.board = board;
@@ -152,9 +140,9 @@ io.on("connection", async (socket) => {
     io.to(socket.id).emit("boardSwitched", await getTasks(socket));
   });
 
-  // ========= ADD TASK =========
+  // Add task
   socket.on("addTask", async ({ title }) => {
-    if (!title || !socket.orgId || !socket.userId) return;
+    if (!title) return;
 
     const isMain = socket.board === "main";
 
@@ -168,10 +156,7 @@ io.on("connection", async (socket) => {
       },
     ]);
 
-    if (error) {
-      console.error("Add task error:", error);
-      return;
-    }
+    if (error) return console.error("Add task error:", error);
 
     io.to(`${socket.orgId}:${socket.board}`).emit(
       "updateTasks",
@@ -179,10 +164,8 @@ io.on("connection", async (socket) => {
     );
   });
 
-  // ========= MOVE TASK =========
+  // Move task
   socket.on("taskMoved", async ({ taskId, newStatus }) => {
-    if (!taskId || !newStatus) return;
-
     await updateTask(taskId, {
       status: newStatus,
       updated_at: new Date().toISOString(),
@@ -194,10 +177,8 @@ io.on("connection", async (socket) => {
     );
   });
 
-  // ========= RENAME TASK =========
+  // Rename task
   socket.on("renameTask", async ({ taskId, newTitle }) => {
-    if (!taskId || !newTitle) return;
-
     await updateTask(taskId, { title: newTitle });
 
     io.to(`${socket.orgId}:${socket.board}`).emit(
@@ -206,12 +187,9 @@ io.on("connection", async (socket) => {
     );
   });
 
-  // ========= DELETE TASK =========
+  // Delete task
   socket.on("deleteTask", async ({ taskId }) => {
-    if (!taskId) return;
-
-    const { error } = await supabase.from("tasks").delete().eq("id", taskId);
-    if (error) console.error("Delete error:", error);
+    await supabase.from("tasks").delete().eq("id", taskId);
 
     io.to(`${socket.orgId}:${socket.board}`).emit(
       "updateTasks",
@@ -220,26 +198,23 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("disconnect", () =>
-    console.log("❌ User disconnected:", socket.id)
+    console.log(`❌ User disconnected: ${socket.id}`)
   );
 });
 
-// ====================== AI TASK AUTO LOOP ======================
+// ====================== AI AUTO LOOP ======================
 setInterval(async () => {
   const now = Date.now();
 
-  // 1️⃣ Finish old progress tasks
-  const { data: progressTasks, error: progressErr } = await supabase
+  // Finish old progress tasks
+  const { data: progressTasks } = await supabase
     .from("tasks")
     .select("*")
     .eq("status", "progress");
 
-  if (progressErr) {
-    console.error("progressTasks error:", progressErr);
-  } else if (progressTasks && progressTasks.length > 0) {
+  if (progressTasks?.length) {
     for (const task of progressTasks) {
       const lastUpdate = new Date(task.updated_at || task.created_at).getTime();
-
       if (now - lastUpdate > 10000) {
         const { output, modelUsed } = await processTaskWithClaude(task.title);
 
@@ -251,18 +226,15 @@ setInterval(async () => {
       }
     }
   } else {
-    // 2️⃣ Pick next todo
-    const { data: todo, error: todoErr } = await supabase
+    // Start next TODO
+    const { data: todo } = await supabase
       .from("tasks")
       .select("*")
       .eq("status", "todo")
       .limit(1)
       .single();
 
-    if (todoErr && todoErr.code !== "PGRST116") {
-      // ignore "no rows" type errors
-      console.error("todo error:", todoErr);
-    } else if (todo) {
+    if (todo) {
       await updateTask(todo.id, {
         status: "progress",
         updated_at: new Date().toISOString(),
@@ -270,7 +242,7 @@ setInterval(async () => {
     }
   }
 
-  // Broadcast updates to all connected sockets
+  // Live updates for all users
   io.sockets.sockets.forEach(async (socket) => {
     socket.emit("updateTasks", await getTasks(socket));
   });
