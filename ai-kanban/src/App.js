@@ -7,6 +7,7 @@ import OrganisationDashboard from "./pages/OrganisationDashboard";
 import OrgBoardPage from "./pages/OrgBoardPage";
 import Dashboard from "./Dashboard";
 import Layout from "./Layout";
+import WorkItems from "./WorkItems";
 
 import { supabase } from "./supabaseClient";
 
@@ -119,6 +120,15 @@ export default function App() {
             )
           }
         />
+
+        {/* LIST VIEW */}
+        <Route
+          path="/org/:orgId/workitems"
+          element={
+            user ? <WorkItems user={user} profile={profile} /> : <Navigate to="/" />
+          }
+        />
+
 
       </Routes>
     </BrowserRouter>
