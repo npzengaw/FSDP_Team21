@@ -297,7 +297,7 @@
 
 //             <div className="popup-footer">
 //               <button
-//                 className={`copy-btn ${copied ? "copied" : ""}`}
+//                 className={copy-btn ${copied ? "copied" : ""}}
 //                 onClick={copyOutput}
 //               >
 //                 {copied ? "Copied!" : "Copy Output"}
@@ -351,8 +351,6 @@ import React, { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import Sidebar from "./Sidebar";
 
-
-
 function KanbanBoard({ socket, tasks, user }) {
   const [columns, setColumns] = useState({
     todo: [],
@@ -381,9 +379,7 @@ function KanbanBoard({ socket, tasks, user }) {
   };
 
   useEffect(() => {
-    if (tasks) {
-      updateBoard(tasks);
-    }
+    if (tasks) updateBoard(tasks);
   }, [tasks]);
 
   const handleAddTask = () => {
@@ -411,14 +407,15 @@ function KanbanBoard({ socket, tasks, user }) {
     if (!movedTask) return;
 
     const updatedCols = { ...columns };
-    updatedCols[sourceCol] = Array.from(updatedCols[sourceCol]);
-    updatedCols[destCol] = Array.from(updatedCols[destCol]);
+    updatedCols[sourceCol] = [...updatedCols[sourceCol]];
+    updatedCols[destCol] = [...updatedCols[destCol]];
 
     updatedCols[sourceCol].splice(source.index, 1);
     updatedCols[destCol].splice(destination.index, 0, {
       ...movedTask,
       status: destCol,
     });
+
     setColumns(updatedCols);
 
     socket.emit("taskMoved", {
@@ -435,6 +432,7 @@ function KanbanBoard({ socket, tasks, user }) {
 
   const saveEdit = (taskId) => {
     if (!socket) return;
+
     if (!editingTitle.trim()) {
       setEditingTaskId(null);
       return;
@@ -475,22 +473,9 @@ function KanbanBoard({ socket, tasks, user }) {
 
   return (
     <div className="layout">
-      {/* LEFT SIDEBAR */}
       <Sidebar />
 
-
-      {/* MAIN CONTENT */}
       <div className="content-area">
-        {/* TOP NAV BAR (tabs + search) */}
-        <div className="top-nav">
-          <div className="tabs">
-            <span className="active">Kanban Board</span>
-            <span>WorkItems</span>
-          </div>
-          <div className="search-icon">🔍</div>
-        </div>
-
-        {/* BOARD SWITCH BUTTONS */}
         <div className="board-switch">
           <button
             className={board === "personal" ? "active" : ""}
@@ -507,29 +492,22 @@ function KanbanBoard({ socket, tasks, user }) {
           </button>
         </div>
 
-        {/* MAIN BOARD */}
         <div className="board">
           <DragDropContext onDragEnd={onDragEnd}>
             {Object.entries(columns).map(([colId, list]) => (
               <Droppable droppableId={colId} key={colId}>
                 {(provided) => (
                   <div
-  ref={provided.innerRef}
-  {...provided.droppableProps}
-  className={`column ${colId}`}
->
-
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className={`column ${colId}`}
+                  >
                     <div className="column-color-bar"></div>
 
-<div className="column-header">
-  <div className="column-title">{colId.toUpperCase()}</div>
-
-  <div className="task-count">
-    {list.length}
-  </div>
-</div>
-
-
+                    <div className="column-header">
+                      <div className="column-title">{colId.toUpperCase()}</div>
+                      <div className="task-count">{list.length}</div>
+                    </div>
 
                     <div className="tasks-list">
                       {list.map((task, index) => (
@@ -547,18 +525,15 @@ function KanbanBoard({ socket, tasks, user }) {
                               onClick={() => handleTaskClick(task)}
                               onDoubleClick={() => startEditing(task)}
                             >
-                              <div className="task-header">
-                                <div className="task-title-bar"></div>
-                                <button
-                                  className="task-menu"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteTask(task.id);
-                                  }}
-                                >
-                                  ✕
-                                </button>
-                              </div>
+                              <button
+                                className="delete-x"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteTask(task.id);
+                                }}
+                              >
+                                ✕
+                              </button>
 
                               {editingTaskId === task.id ? (
                                 <input
@@ -574,23 +549,20 @@ function KanbanBoard({ socket, tasks, user }) {
                                 />
                               ) : (
                                 <>
-                                  <>
-  {/* PRIORITY TAG – placed at the very top of the card */}
-  {task.priority && (
-    <div className={`task-priority priority-${task.priority.toLowerCase()}`}>
-      {task.priority}
-    </div>
-  )}
+                                  {task.priority && (
+                                    <div
+                                      className={`task-priority priority-${task.priority.toLowerCase()}`}
+                                    >
+                                      {task.priority}
+                                    </div>
+                                  )}
 
-  {/* TITLE */}
-  <div className="task-title">{task.title}</div>
+                                  <div className="task-title">{task.title}</div>
 
-  {/* CREATED BY */}
-  <div className="task-created-by">
-    Created by: {task.profiles?.username || "Unknown"}
-  </div>
-</>
-
+                                  <div className="task-created-by">
+                                    Created by:{" "}
+                                    {task.profiles?.username || "Unknown"}
+                                  </div>
                                 </>
                               )}
 
@@ -621,20 +593,10 @@ function KanbanBoard({ socket, tasks, user }) {
         </div>
       </div>
 
-      {/* AI POPUP */}
       {selectedTask && (
-        <div
-          className="popup-overlay"
-          onClick={() => setSelectedTask(null)}
-        >
-          <div
-            className="popup-card"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="popup-close"
-              onClick={() => setSelectedTask(null)}
-            >
+        <div className="popup-overlay" onClick={() => setSelectedTask(null)}>
+          <div className="popup-card" onClick={(e) => e.stopPropagation()}>
+            <button className="popup-close" onClick={() => setSelectedTask(null)}>
               ✕
             </button>
             <h2>{selectedTask.title}</h2>
@@ -658,16 +620,9 @@ function KanbanBoard({ socket, tasks, user }) {
         </div>
       )}
 
-      {/* ADD TASK POPUP */}
       {showAddPopup && (
-        <div
-          className="popup-overlay"
-          onClick={() => setShowAddPopup(false)}
-        >
-          <div
-            className="popup-card"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="popup-overlay" onClick={() => setShowAddPopup(false)}>
+          <div className="popup-card" onClick={(e) => e.stopPropagation()}>
             <h3>Add New Task</h3>
             <input
               type="text"

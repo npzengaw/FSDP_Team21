@@ -182,8 +182,9 @@ body {
   cursor: grab;
   transition: 0.15s;
   margin-top: -3px;
-  
+  position: relative;   /* <--- IMPORTANT */
 }
+
 
 .task-card:hover {
   box-shadow: 0 2px 7px rgba(0,0,0,0.15);
@@ -199,12 +200,20 @@ body {
 
 /* DELETE BUTTON */
 .task-menu {
+  position: absolute;
+  top: 8px;
+  right: 10px;
   background: none;
   border: none;
   font-size: 18px;
   cursor: pointer;
-  color: #666;
+  color: #999;
 }
+
+.task-menu:hover {
+  color: #333;
+}
+
 
 .task-menu:hover {
   color: #000;
@@ -221,10 +230,6 @@ body {
   
 }
 
-/* REMOVE OLD BAR */
-.task-title-bar {
-  display: none !important;
-}
 
 .task-created-by {
   font-size: 12px;
@@ -539,3 +544,28 @@ body {
   flex-direction: column;
 }
 
+/* Cute ✕ delete button at top-right */
+.delete-x {
+  position: absolute;
+  top: 6px;
+  right: 8px; /* moved 8px inward */
+  background: none;
+  border: none;
+  font-size: 13px;   /* smaller */
+  font-weight: 600;  /* thinner */
+  color: #aaa;       /* softer grey */
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.7;
+  transition: 0.15s ease;
+}
+
+.delete-x:hover {
+  opacity: 1;
+  color: #ff5c5c; /* cute pinkish red */
+  transform: scale(1.15);
+}
+
+.task-card {
+  position: relative;
+}
