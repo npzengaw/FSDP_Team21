@@ -126,7 +126,7 @@ export default function Dashboard() {
     <div className="dashboard-body">
       {/* PAGE HEADER */}
       <header className="dash-header-bar">
-        <h1 className="page-title">Intelligent Agent Dashboard</h1>
+        <h1 className="page-title">Dashboard</h1>
         <div className="header-right">
           <input
             className="search-input"
