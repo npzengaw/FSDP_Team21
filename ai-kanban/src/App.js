@@ -14,120 +14,60 @@ import { supabase } from "./supabaseClient";
 export default function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  // ----------------------------------------------------
-  // SAFE PROFILE LOADER
-  // ----------------------------------------------------
+  // --- Load profile -------------------------------------------------------
   const loadProfile = async (userId) => {
-    if (!userId) {
-      setProfile(null);
-      return;
-    }
+    if (!userId) return setProfile(null);
 
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
 
-      if (error) console.error("Profile load error:", error);
-
-      setProfile(data || null);
-    } catch (err) {
-      console.error("Profile fetch failed:", err);
-      setProfile(null);
-    }
+    setProfile(data || null);
   };
 
-  // ----------------------------------------------------
-  // AUTH + TOKEN CORRUPTION AUTO-FIX
-  // ----------------------------------------------------
+  // --- Listen to auth changes (NO INITIAL LOADING SCREEN) -----------------
   useEffect(() => {
-    let stop = false;
+    // Immediately attempt session restore
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const u = session?.user || null;
+      setUser(u);
+      if (u) loadProfile(u.id);
+    });
 
-    const init = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        const session = data?.session || null;
-
-        if (stop) return;
-
-        setUser(session?.user || null);
-
-        if (session?.user) {
-          await loadProfile(session.user.id);
-        }
-      } catch (err) {
-        console.error("❌ Supabase session corrupted:", err);
-
-        // 🧨 CORRUPTED TOKEN FIX — DELETE ALL SUPABASE TOKENS
-        Object.keys(localStorage).forEach((k) => {
-          if (k.includes("auth-token")) {
-            console.warn("🔥 Removing broken token:", k);
-            localStorage.removeItem(k);
-          }
-        });
-
-        await supabase.auth.signOut();
-        setUser(null);
-        setProfile(null);
-      } finally {
-        if (!stop) setLoading(false); // ALWAYS stop loading
-      }
-    };
-
-    init();
-
-    // ----------------------------------------------------
-    // AUTH LISTENER (also safe)
-    // ----------------------------------------------------
+    // Listen for login / logout / token refresh
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        const currentUser = session?.user || null;
-        setUser(currentUser);
-
-        if (currentUser) await loadProfile(currentUser.id);
+        const u = session?.user || null;
+        setUser(u);
+        if (u) loadProfile(u.id);
         else setProfile(null);
-
-        setLoading(false);
       }
     );
 
-    return () => {
-      stop = true;
-      listener.subscription.unsubscribe();
-    };
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  // ----------------------------------------------------
-  // LOADING SCREEN
-  // ----------------------------------------------------
-  if (loading) {
-    return (
-      <div style={{ padding: "3rem", fontSize: "24px", textAlign: "center" }}>
-        Initializing…
-      </div>
-    );
-  }
-
-  // ----------------------------------------------------
-  // ROUTES
-  // ----------------------------------------------------
+  // --- Routes --------------------------------------------------------------
   return (
     <BrowserRouter>
       <Routes>
+
+        {/* LOGIN */}
         <Route
           path="/"
           element={!user ? <LoginPage /> : <Navigate to="/organisations" />}
         />
 
+        {/* SIGNUP */}
         <Route
           path="/signup"
           element={!user ? <SignupPage /> : <Navigate to="/organisations" />}
         />
 
+        {/* ORGANISATIONS */}
         <Route
           path="/organisations"
           element={
@@ -139,6 +79,7 @@ export default function App() {
           }
         />
 
+        {/* KANBAN BOARD */}
         <Route
           path="/org/:orgId"
           element={
@@ -152,6 +93,7 @@ export default function App() {
           }
         />
 
+        {/* DASHBOARD */}
         <Route
           path="/dashboard"
           element={
@@ -165,6 +107,7 @@ export default function App() {
           }
         />
 
+        {/* LIST VIEW */}
         <Route
           path="/org/:orgId/workitems"
           element={
@@ -177,6 +120,7 @@ export default function App() {
             )
           }
         />
+
       </Routes>
     </BrowserRouter>
   );
