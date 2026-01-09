@@ -1,11 +1,12 @@
 import "./KanbanBoard.css";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useNavigate } from "react-router-dom";
 
 function KanbanBoard({ socket, tasks }) {
   const navigate = useNavigate();
-
+  const chatRef = useRef(null);
   const [columns, setColumns] = useState({
     todo: [],
     progress: [],
@@ -16,40 +17,43 @@ function KanbanBoard({ socket, tasks }) {
   const [newTaskTitle, setNewTaskTitle] = useState("");
 
   const [selectedTask, setSelectedTask] = useState(null);
-  const [copied, setCopied] = useState(false);
-
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [aiInput, setAiInput] = useState("");
+useEffect(() => {
+  if (chatRef.current) {
+    chatRef.current.scrollTop = chatRef.current.scrollHeight;
+  }
+}, [selectedTask?.ai_history, selectedTask?.ai_status]);
 
-  // Format tasks into columns
-  const updateBoard = (list) => {
-    const safe = Array.isArray(list) ? list : [];
+  // Update columns when tasks change
+  useEffect(() => {
+    const safe = Array.isArray(tasks) ? tasks : [];
     setColumns({
       todo: safe.filter((t) => t.status === "todo"),
       progress: safe.filter((t) => t.status === "progress"),
       done: safe.filter((t) => t.status === "done"),
     });
-  };
-
-  useEffect(() => {
-    if (tasks) updateBoard(tasks);
   }, [tasks]);
+
+  // Update selectedTask if it changes in tasks
+  useEffect(() => {
+    if (!selectedTask || !tasks) return;
+    const updated = tasks.find((t) => t.id === selectedTask.id);
+    if (updated) setSelectedTask(updated);
+  }, [tasks, selectedTask]);
 
   // Add task
   const handleAddTask = () => {
-    if (!newTaskTitle.trim()) return;
-    if (!socket) return;
-
+    if (!newTaskTitle.trim() || !socket) return;
     socket.emit("addTask", { title: newTaskTitle });
     setNewTaskTitle("");
     setShowAddPopup(false);
   };
 
-  // Drag
+  // Drag and drop
   const onDragEnd = (result) => {
-    if (!socket) return;
-    if (!result.destination) return;
-
+    if (!socket || !result.destination) return;
     const { source, destination } = result;
     const moved = columns[source.droppableId][source.index];
     if (!moved) return;
@@ -65,7 +69,6 @@ function KanbanBoard({ socket, tasks }) {
     });
 
     setColumns(cols);
-
     socket.emit("taskMoved", {
       taskId: moved.id,
       newStatus: destination.droppableId,
@@ -80,25 +83,21 @@ function KanbanBoard({ socket, tasks }) {
   };
 
   const saveEdit = (id) => {
-    if (!socket) return;
-    if (!editingTitle.trim()) return;
-
+    if (!socket || !editingTitle.trim()) return;
     socket.emit("renameTask", { taskId: id, newTitle: editingTitle });
     setEditingTaskId(null);
   };
 
   const deleteTask = (id) => {
     if (!socket) return;
-    if (window.confirm("Delete task?")) {
-      socket.emit("deleteTask", { taskId: id });
-    }
+    if (window.confirm("Delete task?")) socket.emit("deleteTask", { taskId: id });
   };
 
-  const copyOutput = () => {
-    if (!selectedTask?.ai_output) return;
-    navigator.clipboard.writeText(selectedTask.ai_output);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  // Send AI prompt
+  const sendPrompt = () => {
+    if (!aiInput.trim() || !socket || !selectedTask) return;
+    socket.emit("aiPrompt", { taskId: selectedTask.id, prompt: aiInput });
+    setAiInput("");
   };
 
   return (
@@ -143,6 +142,16 @@ function KanbanBoard({ socket, tasks }) {
                     </div>
 
                     <div className="tasks-list">
+
+                      {colId === "todo" && (
+                      <button
+                        className="add-task-btn"
+                        onClick={() => setShowAddPopup(true)}
+                      >
+                        Add Task <span className="plus-icon">+</span>
+                      </button>
+                    )}
+
                       {list.map((task, index) => (
                         <Draggable
                           key={task.id}
@@ -156,7 +165,7 @@ function KanbanBoard({ socket, tasks }) {
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
                               onClick={() => {
-                                if (task.status === "done") setSelectedTask(task);
+                                if (task.status !== "todo") setSelectedTask(task);
                               }}
                               onDoubleClick={() => startEditing(task)}
                             >
@@ -190,9 +199,10 @@ function KanbanBoard({ socket, tasks }) {
                                 </>
                               )}
 
-                              <div className="task-description">
-                                {task.status.toUpperCase()}
+                              <div className={`ai-status ${task.ai_status}`}>
+                                {task.ai_status || "idle"}
                               </div>
+
                             </div>
                           )}
                         </Draggable>
@@ -200,14 +210,7 @@ function KanbanBoard({ socket, tasks }) {
 
                       {provided.placeholder}
 
-                      {colId === "todo" && (
-                        <button
-                          className="add-task-btn"
-                          onClick={() => setShowAddPopup(true)}
-                        >
-                          Add Task <span className="plus-icon">+</span>
-                        </button>
-                      )}
+
                     </div>
                   </div>
                 )}
@@ -218,30 +221,50 @@ function KanbanBoard({ socket, tasks }) {
       </div>
 
       {/* AI Popup */}
-      {selectedTask && (
-        <div className="popup-overlay" onClick={() => setSelectedTask(null)}>
-          <div className="popup-card" onClick={(e) => e.stopPropagation()}>
-            <button className="popup-close" onClick={() => setSelectedTask(null)}>
-              ✕
-            </button>
+{selectedTask && (
+  <div className="popup-overlay" onClick={() => setSelectedTask(null)}>
+    <div className="popup-card large" onClick={(e) => e.stopPropagation()}>
+      <button className="popup-close" onClick={() => setSelectedTask(null)}>
+        ✕
+      </button>
 
-            <h2>{selectedTask.title}</h2>
+      <h2>{selectedTask.title}</h2>
 
-            <div className="popup-content">
-              {selectedTask.ai_output || "No AI output available"}
-            </div>
+<div className="popup-content chat-window" ref={chatRef}>
+  {(selectedTask.ai_history || []).map((msg, index) => (
+    <div
+    key={index}
+    className={`chat-bubble ${msg.role === "assistant" ? "assistant" : "user"}`}
+  >
+    {/* Use ReactMarkdown to render the text properly */}
+    <ReactMarkdown>{msg.content}</ReactMarkdown>
+  </div>
+  ))}
 
-            <div className="popup-footer">
-              <button
-                className={`copy-btn ${copied ? "copied" : ""}`}
-                onClick={copyOutput}
-              >
-                {copied ? "Copied!" : "Copy Output"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+  {selectedTask.ai_status === "thinking" && (
+    <div className="chat-bubble assistant typing">
+      AI is thinking...
+    </div>
+  )}
+</div>
+
+
+      <div className="popup-footer">
+        <input
+          className="ai-input"
+          placeholder="Send instructions to AI..."
+          value={aiInput}
+          onChange={(e) => setAiInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendPrompt()}
+        />
+        <button className="send-btn" onClick={sendPrompt}>
+          Send
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
 
       {/* Add Task Popup */}
       {showAddPopup && (

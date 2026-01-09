@@ -11,21 +11,19 @@ const cors = require("cors");
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 // ====================== AI via OpenRouter ======================
-async function processTaskWithClaude(taskTitle) {
+async function processTaskWithClaude(history) {
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "Aether Kanban AI Agent",
       },
       body: JSON.stringify({
         model: "anthropic/claude-3-haiku",
         messages: [
-          { role: "system", content: "You are an expert AI coding agent. Be concise." },
-          { role: "user", content: `Task: ${taskTitle}. Provide a short progress update.` },
+          { role: "system", content: "You are an expert AI coding assistant. Be concise." },
+          ...history // Pass full conversation
         ],
       }),
     });
@@ -49,10 +47,13 @@ const taskSelect = `
   updated_at,
   ai_output,
   ai_agent,
+  ai_status,
+  ai_history,
   profiles:user_id (
     username
   )
 `;
+
 
 async function getPersonalTasks(userId) {
   if (!userId) return [];
@@ -111,20 +112,16 @@ io.on("connection", async (socket) => {
   // Initial load
   socket.emit("loadTasks", await getPersonalTasks(userId));
 
-  // Add task (personal only)
+  // Add task
   socket.on("addTask", async ({ title }) => {
     if (!title || !String(title).trim()) return;
-
-    // ⚠️ IMPORTANT:
-    // This insert assumes your "tasks" table allows organisation_id to be NULL
-    // and does not require is_main_board.
     const { error } = await supabase.from("tasks").insert([
       {
         title: String(title).trim(),
-        status: "todo",
         user_id: socket.userId,
+        ai_history: [], // <-- initialize AI chat history
       },
-    ]);
+  ]);
 
     if (error) {
       console.error("Add task error:", error);
@@ -138,11 +135,7 @@ io.on("connection", async (socket) => {
   socket.on("taskMoved", async ({ taskId, newStatus }) => {
     if (!taskId || !newStatus) return;
 
-    await updateTask(taskId, {
-      status: newStatus,
-      updated_at: new Date().toISOString(),
-    });
-
+    await updateTask(taskId, { status: newStatus, updated_at: new Date().toISOString() });
     await emitPersonalTasks(io, socket.userId);
   });
 
@@ -151,7 +144,6 @@ io.on("connection", async (socket) => {
     if (!taskId || !newTitle || !String(newTitle).trim()) return;
 
     await updateTask(taskId, { title: String(newTitle).trim() });
-
     await emitPersonalTasks(io, socket.userId);
   });
 
@@ -165,63 +157,47 @@ io.on("connection", async (socket) => {
     await emitPersonalTasks(io, socket.userId);
   });
 
+  // AI Prompt handler
+socket.on("aiPrompt", async ({ taskId, prompt }) => {
+  if (!taskId || !prompt) return;
+
+  // 1️⃣ Get existing task history
+  const { data: task } = await supabase
+    .from("tasks")
+    .select("ai_history,user_id")
+    .eq("id", taskId)
+    .single();
+
+  const history = task.ai_history || [];
+
+  // 2️⃣ Add user's message
+  history.push({ role: "user", content: prompt });
+
+  // 3️⃣ Mark task as thinking
+  await updateTask(taskId, { ai_status: "thinking", ai_history: history });
+  await emitPersonalTasks(io, socket.userId);
+
+  // 4️⃣ Get AI response
+  const { output, modelUsed } = await processTaskWithClaude(history);
+
+  // 5️⃣ Add AI response to history
+  history.push({ role: "assistant", content: output });
+
+  // 6️⃣ Save updated history
+  await updateTask(taskId, { ai_history: history, ai_agent: modelUsed, ai_status: "done" });
+
+  // 7️⃣ Send updated tasks to client
+  await emitPersonalTasks(io, task.user_id);
+});
+
+
   socket.on("disconnect", () => {
     console.log(`❌ User disconnected: ${socket.id}`);
   });
 });
 
 // ====================== AI AUTO LOOP (PERSONAL-AWARE) ======================
-setInterval(async () => {
-  const now = Date.now();
 
-  // 1) Finish old progress tasks (all users)
-  const { data: progressTasks, error: progressErr } = await supabase
-    .from("tasks")
-    .select("id, title, user_id, updated_at, created_at")
-    .eq("status", "progress");
-
-  if (progressErr) console.error("progressTasks error:", progressErr);
-
-  if (progressTasks?.length) {
-    for (const task of progressTasks) {
-      const lastUpdate = new Date(task.updated_at || task.created_at).getTime();
-
-      if (now - lastUpdate > 10000) {
-        const { output, modelUsed } = await processTaskWithClaude(task.title);
-
-        await updateTask(task.id, {
-          status: "done",
-          ai_output: output,
-          ai_agent: modelUsed,
-          updated_at: new Date().toISOString(),
-        });
-
-        // push updated list to that user only
-        if (task.user_id) await emitPersonalTasks(io, task.user_id);
-      }
-    }
-    return;
-  }
-
-  // 2) Start next todo (one task globally)
-  const { data: todo, error: todoErr } = await supabase
-    .from("tasks")
-    .select("id, user_id")
-    .eq("status", "todo")
-    .limit(1)
-    .single();
-
-  if (todoErr && todoErr.code !== "PGRST116") console.error("todo error:", todoErr);
-
-  if (todo) {
-    await updateTask(todo.id, {
-      status: "progress",
-      updated_at: new Date().toISOString(),
-    });
-
-    if (todo.user_id) await emitPersonalTasks(io, todo.user_id);
-  }
-}, 7000);
 
 // ====================== START SERVER ======================
 const PORT = process.env.PORT || 5000;

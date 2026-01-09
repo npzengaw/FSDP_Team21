@@ -273,3 +273,206 @@ body {
   border: none;
   cursor: pointer;
 }
+/* ============================
+   AI Chat Bubbles
+============================ */
+.chat-window {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 6px; /* for scrollbar space */
+}
+
+.chat-bubble {
+  max-width: 80%;
+  padding: 12px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  line-height: 1.4;
+  position: relative;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.chat-bubble.user {
+  align-self: flex-end;
+  background-color: #0078d4;
+  color: white;
+  display: flex;            /* enable flex inside bubble */
+  align-items: center;      /* vertically center text */
+  justify-content: flex-start; /* text stays left inside bubble */
+}
+
+
+.chat-bubble.assistant {
+  align-self: flex-start;
+  background-color: #f1f1f1;
+  color: #111;
+  border-bottom-left-radius: 4px;
+}
+
+.chat-bubble.typing {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* Scrollbar Styling */
+.chat-window::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-window::-webkit-scrollbar-thumb {
+  background-color: rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+
+.ai-input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 20px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  outline: none;
+}
+
+.popup-footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+/* ============================
+   POPUP CARD (AI Chat)
+============================ */
+.popup-card.large {
+  width: 80%;           /* take 80% of screen width */
+  max-width: 900px;     /* but don't go beyond 900px */
+  min-width: 400px;     /* minimum width for small screens */
+  height: 80%;          /* take 80% of screen height */
+  max-height: 700px;    /* maximum height */
+  padding: 24px 28px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #fff;
+}
+
+/* Make the chat window inside scrollable */
+.popup-content.chat-window {
+  flex: 1;               /* take remaining space */
+  overflow-y: auto;      /* scroll when content overflows */
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #e3e3e3;
+  background: #fafafa;
+}
+
+
+/* ============================
+   AI Chat Footer (Input + Send)
+============================ */
+
+/* ============================
+   OPTIMIZED FULL-SCREEN POPUP
+============================ */
+
+/* 1. Make the card fill the screen */
+.popup-card.large {
+  width: 95vw;            /* 95% of viewport width */
+  height: 90vh;           /* 90% of viewport height */
+  max-width: 1400px;      /* Allow it to get very wide on big screens */
+  max-height: none;       /* Remove height limits */
+  
+  display: flex;          /* ENABLE FLEXBOX */
+  flex-direction: column; /* Stack children vertically */
+  
+  padding: 0;             /* Remove padding here, we apply it to children */
+  overflow: hidden;       /* Prevent scrollbars on the card itself */
+  background: #fff;
+  border-radius: 12px;
+}
+
+/* 2. Fix the Header */
+.popup-card.large h2 {
+  flex-shrink: 0;         /* Prevent header from shrinking */
+  padding: 20px 24px;
+  margin: 0;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+}
+
+/* 3. MAXIMIZE the Chat Area (Crucial Step) */
+.popup-content.chat-window {
+  flex: 1;                /* MAGIC: Grow to fill ALL empty vertical space */
+  display: flex;
+  flex-direction: column;
+  
+  margin: 0;              /* Remove margins */
+  border: none;           /* Remove borders that waste space */
+  border-radius: 0;       /* Square corners inside */
+  padding: 24px;
+  
+  overflow-y: auto;       /* Scroll only this area */
+  max-height: none;       /* Remove previous height caps */
+  background: #f9f9f9;
+}
+
+/* 4. Formatting for the list items inside chat */
+.chat-window ul, .chat-window ol {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+.chat-window p {
+  margin-bottom: 8px;
+}
+
+/* 5. Fix the Footer (Input Area) */
+.popup-footer {
+  flex-shrink: 0;         /* Prevent footer from shrinking */
+  padding: 20px 24px;
+  margin: 0;
+  background: #fff;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Adjust input to fill width */
+.ai-input {
+  flex: 1;
+  padding: 14px;
+  font-size: 15px;
+}
+.send-btn {
+  padding: 12px 20px;
+  border-radius: 20px;
+  border: none;
+  background: #0078d4;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;           /* fix button width */
+}
+.chat-bubble ul,
+.chat-bubble ol {
+  padding-left: 20px;      /* standard indentation */
+  margin: 8px 0;           /* vertical spacing */
+}
+
+.chat-bubble li {
+  margin-bottom: 6px;      /* spacing between items */
+  line-height: 1.4;
+}
+
+.chat-bubble ol {
+  list-style-position: inside;  /* numbers stay inside the bubble */
+}
+
+.chat-bubble ul {
+  list-style-position: inside;  /* bullets stay inside */
+}
