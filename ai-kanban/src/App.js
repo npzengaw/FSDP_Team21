@@ -3,11 +3,14 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import LoginPage from "./LoginPage";
 import SignupPage from "./SignupPage";
-import OrganisationDashboard from "./pages/OrganisationDashboard";
-import OrgBoardPage from "./pages/OrgBoardPage";
-import Dashboard from "./Dashboard";
+
 import Layout from "./Layout";
+import Dashboard from "./Dashboard";
 import WorkItems from "./WorkItems";
+import OrgBoardPage from "./pages/OrgBoardPage";
+
+// ✅ bring back org page
+import OrganisationDashboard from "./pages/OrganisationDashboard";
 
 import { supabase } from "./supabaseClient";
 
@@ -15,29 +18,27 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
 
-  // --- Load profile -------------------------------------------------------
   const loadProfile = async (userId) => {
     if (!userId) return setProfile(null);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .maybeSingle();
 
+    if (error) console.error("loadProfile error:", error);
     setProfile(data || null);
   };
 
-  // --- Listen to auth changes (NO INITIAL LOADING SCREEN) -----------------
   useEffect(() => {
-    // Immediately attempt session restore
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user || null;
       setUser(u);
       if (u) loadProfile(u.id);
+      else setProfile(null);
     });
 
-    // Listen for login / logout / token refresh
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         const u = session?.user || null;
@@ -50,24 +51,22 @@ export default function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // --- Routes --------------------------------------------------------------
   return (
     <BrowserRouter>
       <Routes>
-
         {/* LOGIN */}
         <Route
           path="/"
-          element={!user ? <LoginPage /> : <Navigate to="/organisations" />}
+          element={!user ? <LoginPage /> : <Navigate to="/kanban" />}
         />
 
         {/* SIGNUP */}
         <Route
           path="/signup"
-          element={!user ? <SignupPage /> : <Navigate to="/organisations" />}
+          element={!user ? <SignupPage /> : <Navigate to="/kanban" />}
         />
 
-        {/* ORGANISATIONS */}
+        {/* ✅ ORGANISATIONS PAGE (WORKSPACES) */}
         <Route
           path="/organisations"
           element={
@@ -79,9 +78,9 @@ export default function App() {
           }
         />
 
-        {/* KANBAN BOARD */}
+        {/* PERSONAL KANBAN (HOME) */}
         <Route
-          path="/org/:orgId"
+          path="/kanban"
           element={
             user ? (
               <Layout>
@@ -93,7 +92,7 @@ export default function App() {
           }
         />
 
-        {/* DASHBOARD */}
+        {/* PERSONAL DASHBOARD */}
         <Route
           path="/dashboard"
           element={
@@ -107,9 +106,9 @@ export default function App() {
           }
         />
 
-        {/* LIST VIEW */}
+        {/* PERSONAL WORK ITEMS */}
         <Route
-          path="/org/:orgId/workitems"
+          path="/workitems"
           element={
             user ? (
               <Layout>
@@ -121,6 +120,8 @@ export default function App() {
           }
         />
 
+        {/* CATCH-ALL */}
+        <Route path="*" element={<Navigate to={user ? "/kanban" : "/"} />} />
       </Routes>
     </BrowserRouter>
   );

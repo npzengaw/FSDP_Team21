@@ -1,13 +1,14 @@
 import Sidebar from "./Sidebar";
 
+const SIDEBAR_WIDTH = 230;
+
 export default function Layout({ children }) {
   return (
-    <div style={{ display: "flex" }}>
+    <>
       <Sidebar />
-
-      <div style={{ marginLeft: "230px", width: "100%" }}>
+      <div style={{ paddingLeft: SIDEBAR_WIDTH, minHeight: "100vh" }}>
         {children}
       </div>
-    </div>
+    </>
   );
 }

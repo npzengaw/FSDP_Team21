@@ -8,33 +8,27 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 
 // ====================== SUPABASE ======================
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 // ====================== AI via OpenRouter ======================
 async function processTaskWithClaude(taskTitle) {
   try {
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "HTTP-Referer": "http://localhost:3000",
-          "X-Title": "Aether Kanban AI Agent",
-        },
-        body: JSON.stringify({
-          model: "anthropic/claude-3-haiku",
-          messages: [
-            { role: "system", content: "You are an expert AI coding agent. Be concise." },
-            { role: "user", content: `Task: ${taskTitle}. Provide a short progress update.` },
-          ],
-        }),
-      }
-    );
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "HTTP-Referer": "http://localhost:3000",
+        "X-Title": "Aether Kanban AI Agent",
+      },
+      body: JSON.stringify({
+        model: "anthropic/claude-3-haiku",
+        messages: [
+          { role: "system", content: "You are an expert AI coding agent. Be concise." },
+          { role: "user", content: `Task: ${taskTitle}. Provide a short progress update.` },
+        ],
+      }),
+    });
 
     const data = await response.json();
     const output = data.choices?.[0]?.message?.content || "No response.";
@@ -46,52 +40,34 @@ async function processTaskWithClaude(taskTitle) {
 }
 
 // ====================== TASK HELPERS ======================
-async function getTasks(socket) {
-  const { orgId, userId, board } = socket;
+const taskSelect = `
+  id,
+  title,
+  status,
+  user_id,
+  created_at,
+  updated_at,
+  ai_output,
+  ai_agent,
+  profiles:user_id (
+    username
+  )
+`;
 
-  const baseSelect = `
-    id,
-    title,
-    status,
-    organisation_id,
-    user_id,
-    is_main_board,
-    created_at,
-    updated_at,
-    ai_output,
-    ai_agent,
-    profiles:user_id (
-      username
-    )
-  `;
+async function getPersonalTasks(userId) {
+  if (!userId) return [];
 
-  try {
-    // MAIN BOARD (organisation wide)
-    if (board === "main") {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select(baseSelect)
-        .eq("organisation_id", orgId)
-        .eq("is_main_board", true);
+  const { data, error } = await supabase
+    .from("tasks")
+    .select(taskSelect)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
 
-      if (error) console.error("getTasks (main) error:", error);
-      return data || [];
-    }
-
-    // PERSONAL BOARD (user specific)
-    const { data, error } = await supabase
-      .from("tasks")
-      .select(baseSelect)
-      .eq("organisation_id", orgId)
-      .eq("user_id", userId)
-      .eq("is_main_board", false);
-
-    if (error) console.error("getTasks (personal) error:", error);
-    return data || [];
-  } catch (err) {
-    console.error("getTasks unexpected error:", err);
+  if (error) {
+    console.error("getPersonalTasks error:", error);
     return [];
   }
+  return data || [];
 }
 
 async function updateTask(taskId, updates) {
@@ -99,12 +75,16 @@ async function updateTask(taskId, updates) {
   if (error) console.error("Update error:", error);
 }
 
+async function emitPersonalTasks(io, userId) {
+  const tasks = await getPersonalTasks(userId);
+  io.to(`user:${userId}`).emit("updateTasks", tasks);
+}
+
 // ====================== EXPRESS + SOCKET ======================
 const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
-
 const io = new Server(server, {
   cors: {
     origin: ["http://localhost:3000"],
@@ -114,107 +94,98 @@ const io = new Server(server, {
 
 // ====================== SOCKET EVENTS ======================
 io.on("connection", async (socket) => {
-  const { orgId, userId, board } = socket.handshake.query;
+  const { userId } = socket.handshake.query;
 
-  socket.orgId = orgId;
+  if (!userId) {
+    console.log("❌ Socket missing userId, disconnecting");
+    socket.disconnect(true);
+    return;
+  }
+
   socket.userId = userId;
-  socket.board = board || "personal";
 
-  socket.join(`${socket.orgId}:${socket.board}`);
-
-  console.log(`🔗 User ${socket.id} joined Org ${socket.orgId}, Board = ${socket.board}`);
+  // Join user room
+  socket.join(`user:${userId}`);
+  console.log(`🔗 User ${socket.id} joined Personal Room user:${userId}`);
 
   // Initial load
-  socket.emit("loadTasks", await getTasks(socket));
+  socket.emit("loadTasks", await getPersonalTasks(userId));
 
-  // Board switch
-  socket.on("switchBoard", async ({ board }) => {
-    if (!board) return;
-
-    console.log(`🔀 ${socket.id} switching board ${socket.board} -> ${board}`);
-
-    socket.leave(`${socket.orgId}:${socket.board}`);
-    socket.board = board;
-    socket.join(`${socket.orgId}:${board}`);
-
-    io.to(socket.id).emit("boardSwitched", await getTasks(socket));
-  });
-
-  // Add task
+  // Add task (personal only)
   socket.on("addTask", async ({ title }) => {
-    if (!title) return;
+    if (!title || !String(title).trim()) return;
 
-    const isMain = socket.board === "main";
-
+    // ⚠️ IMPORTANT:
+    // This insert assumes your "tasks" table allows organisation_id to be NULL
+    // and does not require is_main_board.
     const { error } = await supabase.from("tasks").insert([
       {
-        title,
+        title: String(title).trim(),
         status: "todo",
-        organisation_id: socket.orgId,
         user_id: socket.userId,
-        is_main_board: isMain,
       },
     ]);
 
-    if (error) return console.error("Add task error:", error);
+    if (error) {
+      console.error("Add task error:", error);
+      return;
+    }
 
-    io.to(`${socket.orgId}:${socket.board}`).emit(
-      "updateTasks",
-      await getTasks(socket)
-    );
+    await emitPersonalTasks(io, socket.userId);
   });
 
   // Move task
   socket.on("taskMoved", async ({ taskId, newStatus }) => {
+    if (!taskId || !newStatus) return;
+
     await updateTask(taskId, {
       status: newStatus,
       updated_at: new Date().toISOString(),
     });
 
-    io.to(`${socket.orgId}:${socket.board}`).emit(
-      "updateTasks",
-      await getTasks(socket)
-    );
+    await emitPersonalTasks(io, socket.userId);
   });
 
   // Rename task
   socket.on("renameTask", async ({ taskId, newTitle }) => {
-    await updateTask(taskId, { title: newTitle });
+    if (!taskId || !newTitle || !String(newTitle).trim()) return;
 
-    io.to(`${socket.orgId}:${socket.board}`).emit(
-      "updateTasks",
-      await getTasks(socket)
-    );
+    await updateTask(taskId, { title: String(newTitle).trim() });
+
+    await emitPersonalTasks(io, socket.userId);
   });
 
   // Delete task
   socket.on("deleteTask", async ({ taskId }) => {
-    await supabase.from("tasks").delete().eq("id", taskId);
+    if (!taskId) return;
 
-    io.to(`${socket.orgId}:${socket.board}`).emit(
-      "updateTasks",
-      await getTasks(socket)
-    );
+    const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+    if (error) console.error("Delete error:", error);
+
+    await emitPersonalTasks(io, socket.userId);
   });
 
-  socket.on("disconnect", () =>
-    console.log(`❌ User disconnected: ${socket.id}`)
-  );
+  socket.on("disconnect", () => {
+    console.log(`❌ User disconnected: ${socket.id}`);
+  });
 });
 
-// ====================== AI AUTO LOOP ======================
+// ====================== AI AUTO LOOP (PERSONAL-AWARE) ======================
 setInterval(async () => {
   const now = Date.now();
 
-  // Finish old progress tasks
-  const { data: progressTasks } = await supabase
+  // 1) Finish old progress tasks (all users)
+  const { data: progressTasks, error: progressErr } = await supabase
     .from("tasks")
-    .select("*")
+    .select("id, title, user_id, updated_at, created_at")
     .eq("status", "progress");
+
+  if (progressErr) console.error("progressTasks error:", progressErr);
 
   if (progressTasks?.length) {
     for (const task of progressTasks) {
       const lastUpdate = new Date(task.updated_at || task.created_at).getTime();
+
       if (now - lastUpdate > 10000) {
         const { output, modelUsed } = await processTaskWithClaude(task.title);
 
@@ -222,34 +193,36 @@ setInterval(async () => {
           status: "done",
           ai_output: output,
           ai_agent: modelUsed,
+          updated_at: new Date().toISOString(),
         });
+
+        // push updated list to that user only
+        if (task.user_id) await emitPersonalTasks(io, task.user_id);
       }
     }
-  } else {
-    // Start next TODO
-    const { data: todo } = await supabase
-      .from("tasks")
-      .select("*")
-      .eq("status", "todo")
-      .limit(1)
-      .single();
-
-    if (todo) {
-      await updateTask(todo.id, {
-        status: "progress",
-        updated_at: new Date().toISOString(),
-      });
-    }
+    return;
   }
 
-  // Live updates for all users
-  io.sockets.sockets.forEach(async (socket) => {
-    socket.emit("updateTasks", await getTasks(socket));
-  });
+  // 2) Start next todo (one task globally)
+  const { data: todo, error: todoErr } = await supabase
+    .from("tasks")
+    .select("id, user_id")
+    .eq("status", "todo")
+    .limit(1)
+    .single();
+
+  if (todoErr && todoErr.code !== "PGRST116") console.error("todo error:", todoErr);
+
+  if (todo) {
+    await updateTask(todo.id, {
+      status: "progress",
+      updated_at: new Date().toISOString(),
+    });
+
+    if (todo.user_id) await emitPersonalTasks(io, todo.user_id);
+  }
 }, 7000);
 
 // ====================== START SERVER ======================
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () =>
-  console.log(`🚀 Server running on http://localhost:${PORT}`)
-);
+server.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
