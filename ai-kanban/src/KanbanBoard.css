@@ -11,8 +11,7 @@ body {
 }
 
 /* ============================
-   PAGE WRAPPER (inside Layout)
-   IMPORTANT: do NOT style .sidebar here
+   PAGE WRAPPER
 ============================ */
 .kanban-container {
   min-height: 100vh;
@@ -65,7 +64,7 @@ body {
   box-shadow: 0 0 5px rgba(128, 96, 202, 0.35);
 }
 
-/* HEADER STRIP */
+/* Optional (if you ever use it) */
 .column-color-bar {
   height: 6px;
   width: 100%;
@@ -150,6 +149,7 @@ body {
   color: #666;
 }
 
+/* Not used in current KanbanBoard.js, but harmless if you re-add it later */
 .task-description {
   margin-top: 6px;
   font-size: 11px;
@@ -162,29 +162,8 @@ body {
   box-shadow: 0 1px 3px rgba(128, 96, 202, 0.18);
 }
 
-/* ADD TASK BUTTON */
-.add-task-btn {
-  padding: 12px;
-  background: white;
-  border-radius: 6px;
-  border: 2px dashed #bbb;
-  color: #777;
-  cursor: pointer;
-  font-size: 13px;
-  text-align: center;
-}
-
-.add-task-btn:hover {
-  border-color: #0078d4;
-  color: #0078d4;
-}
-
-.plus-icon {
-  font-size: 18px;
-}
-
 /* ============================
-   POPUPS
+   PROMPT POPUP (TODO -> Prompt AI)
 ============================ */
 .popup-overlay {
   position: fixed;
@@ -215,7 +194,9 @@ body {
   color: #1c1c1c;
 }
 
-.popup-card input {
+.popup-card input,
+.popup-card textarea,
+.popup-card select {
   width: 100%;
   padding: 14px 16px;
   border-radius: 10px;
@@ -236,19 +217,7 @@ body {
   cursor: pointer;
 }
 
-.popup-content {
-  background: #fafafa;
-  border-radius: 10px;
-  padding: 14px 16px;
-  border: 1px solid #e3e3e3;
-  max-height: 260px;
-  overflow-y: auto;
-  margin-top: 12px;
-  white-space: pre-wrap;
-}
-
-.popup-actions,
-.popup-footer {
+.popup-actions {
   margin-top: 26px;
   display: flex;
   justify-content: flex-end;
@@ -264,8 +233,7 @@ body {
   cursor: pointer;
 }
 
-.add-btn,
-.copy-btn {
+.add-btn {
   background: #0078d4;
   padding: 10px 20px;
   color: white;
@@ -273,206 +241,187 @@ body {
   border: none;
   cursor: pointer;
 }
-/* ============================
-   AI Chat Bubbles
-============================ */
-.chat-window {
+
+/* Fullscreen-ish prompt popup sizing (KEEP THIS — used by .popup-card.large) */
+/* Prompt popup sizing (smaller + professional) */
+.popup-card.large{
+  width: min(760px, 92vw);
+  max-height: 72vh;
+  padding: 22px 24px;
+  border-radius: 14px;
+  overflow: auto;
+}
+
+/* ===================== PROFESSIONAL DONE MODAL ===================== */
+.modal-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  z-index: 9999;
+  padding: 18px;
+}
+
+.modal-card{
+  width: min(980px, 94vw);
+  max-height: 86vh;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 25px 70px rgba(2, 6, 23, 0.25);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header{
+  padding: 18px 18px 12px 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.modal-title-wrap{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.modal-title{
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.25;
+  color: #0f172a;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modal-subtitle{
+  font-size: 12px;
+  color: #64748b;
+}
+.modal-subtitle span{
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.modal-close{
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  background: #fff;
+  color: #0f172a;
+  border-radius: 12px;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.modal-close:hover{
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.modal-desc{
+  padding: 14px 18px 0 18px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.modal-section{
+  padding: 14px 18px 18px 18px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 300px;
-  overflow-y: auto;
-  padding-right: 6px; /* for scrollbar space */
+  overflow: hidden;
 }
 
-.chat-bubble {
-  max-width: 80%;
-  padding: 12px 16px;
-  border-radius: 20px;
-  font-size: 14px;
-  line-height: 1.4;
-  position: relative;
-  word-wrap: break-word;
-  white-space: pre-wrap;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+.section-label{
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 800;
 }
 
-.chat-bubble.user {
-  align-self: flex-end;
-  background-color: #0078d4;
-  color: white;
-  display: flex;            /* enable flex inside bubble */
-  align-items: center;      /* vertically center text */
-  justify-content: flex-start; /* text stays left inside bubble */
-}
-
-
-.chat-bubble.assistant {
-  align-self: flex-start;
-  background-color: #f1f1f1;
-  color: #111;
-  border-bottom-left-radius: 4px;
-}
-
-.chat-bubble.typing {
-  font-style: italic;
-  opacity: 0.8;
-}
-
-/* Scrollbar Styling */
-.chat-window::-webkit-scrollbar {
-  width: 6px;
-}
-
-.chat-window::-webkit-scrollbar-thumb {
-  background-color: rgba(0,0,0,0.2);
-  border-radius: 3px;
-}
-
-.ai-input {
-  flex: 1;
-  padding: 10px 14px;
-  border-radius: 20px;
-  border: 1px solid #ccc;
-  font-size: 14px;
-  outline: none;
-}
-
-.popup-footer {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-}
-/* ============================
-   POPUP CARD (AI Chat)
-============================ */
-.popup-card.large {
-  width: 80%;           /* take 80% of screen width */
-  max-width: 900px;     /* but don't go beyond 900px */
-  min-width: 400px;     /* minimum width for small screens */
-  height: 80%;          /* take 80% of screen height */
-  max-height: 700px;    /* maximum height */
-  padding: 24px 28px;
-  border-radius: 14px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  background: #fff;
-}
-
-/* Make the chat window inside scrollable */
-.popup-content.chat-window {
-  flex: 1;               /* take remaining space */
-  overflow-y: auto;      /* scroll when content overflows */
-  margin-top: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid #e3e3e3;
-  background: #fafafa;
-}
-
-
-/* ============================
-   AI Chat Footer (Input + Send)
-============================ */
-
-/* ============================
-   OPTIMIZED FULL-SCREEN POPUP
-============================ */
-
-/* 1. Make the card fill the screen */
-.popup-card.large {
-  width: 95vw;            /* 95% of viewport width */
-  height: 90vh;           /* 90% of viewport height */
-  max-width: 1400px;      /* Allow it to get very wide on big screens */
-  max-height: none;       /* Remove height limits */
-  
-  display: flex;          /* ENABLE FLEXBOX */
-  flex-direction: column; /* Stack children vertically */
-  
-  padding: 0;             /* Remove padding here, we apply it to children */
-  overflow: hidden;       /* Prevent scrollbars on the card itself */
-  background: #fff;
-  border-radius: 12px;
-}
-
-/* 2. Fix the Header */
-.popup-card.large h2 {
-  flex-shrink: 0;         /* Prevent header from shrinking */
-  padding: 20px 24px;
+.output-box{
   margin: 0;
-  border-bottom: 1px solid #eee;
-  background: #fff;
-}
-
-/* 3. MAXIMIZE the Chat Area (Crucial Step) */
-.popup-content.chat-window {
-  flex: 1;                /* MAGIC: Grow to fill ALL empty vertical space */
-  display: flex;
-  flex-direction: column;
-  
-  margin: 0;              /* Remove margins */
-  border: none;           /* Remove borders that waste space */
-  border-radius: 0;       /* Square corners inside */
-  padding: 24px;
-  
-  overflow-y: auto;       /* Scroll only this area */
-  max-height: none;       /* Remove previous height caps */
-  background: #f9f9f9;
-}
-
-/* 4. Formatting for the list items inside chat */
-.chat-window ul, .chat-window ol {
-  padding-left: 20px;
-  margin: 8px 0;
-}
-.chat-window p {
-  margin-bottom: 8px;
-}
-
-/* 5. Fix the Footer (Input Area) */
-.popup-footer {
-  flex-shrink: 0;         /* Prevent footer from shrinking */
-  padding: 20px 24px;
-  margin: 0;
-  background: #fff;
-  border-top: 1px solid #eee;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-/* Adjust input to fill width */
-.ai-input {
-  flex: 1;
   padding: 14px;
-  font-size: 15px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  background: #0b1220;
+  color: #e5e7eb;
+  font-size: 12px;
+  line-height: 1.55;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+  max-height: 52vh;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
-.send-btn {
-  padding: 12px 20px;
-  border-radius: 20px;
+
+.modal-footer{
+  padding: 14px 18px;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.btn-primary{
   border: none;
-  background: #0078d4;
-  color: white;
-  font-size: 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 800;
   cursor: pointer;
-  flex-shrink: 0;           /* fix button width */
 }
-.chat-bubble ul,
-.chat-bubble ol {
-  padding-left: 20px;      /* standard indentation */
-  margin: 8px 0;           /* vertical spacing */
+.btn-primary:hover{ filter: brightness(0.95); }
+.btn-primary:active{ transform: translateY(1px); }
+
+/* ============================
+   PASTEL COLUMN THEMING
+============================ */
+
+/* Base column */
+.column {
+  border-radius: 14px;
+  overflow: hidden;
 }
 
-.chat-bubble li {
-  margin-bottom: 6px;      /* spacing between items */
-  line-height: 1.4;
+/* To Do — soft blue */
+.column.todo {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
 }
 
-.chat-bubble ol {
-  list-style-position: inside;  /* numbers stay inside the bubble */
+/* In Progress — soft yellow */
+.column.progress {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
 }
 
-.chat-bubble ul {
-  list-style-position: inside;  /* bullets stay inside */
+/* Done — soft green */
+.column.done {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+/* Header still white for contrast */
+.column-header {
+  background: #ffffff;
+}
+
+/* Task cards pop from pastel background */
+.column.todo .task-card,
+.column.progress .task-card,
+.column.done .task-card {
+  background: #ffffff;
 }
