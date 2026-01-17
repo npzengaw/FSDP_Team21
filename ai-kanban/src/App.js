@@ -9,7 +9,7 @@ import Dashboard from "./Dashboard";
 import WorkItems from "./WorkItems";
 import OrgBoardPage from "./pages/OrgBoardPage";
 
-// ✅ bring back org page
+// ✅ org page
 import OrganisationDashboard from "./pages/OrganisationDashboard";
 
 import { supabase } from "./supabaseClient";
@@ -51,6 +51,9 @@ export default function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // ✅ helper: read active org (persist org mode)
+  const activeOrgId = window.localStorage.getItem("activeOrgId");
+
   return (
     <BrowserRouter>
       <Routes>
@@ -66,7 +69,7 @@ export default function App() {
           element={!user ? <SignupPage /> : <Navigate to="/kanban" />}
         />
 
-        {/* ✅ ORGANISATIONS PAGE (WORKSPACES) */}
+        {/* ORGANISATIONS PAGE */}
         <Route
           path="/organisations"
           element={
@@ -92,6 +95,20 @@ export default function App() {
           }
         />
 
+        {/* ORG WORKITEMS (SHARED BACKLOG) */}
+        <Route
+          path="/org/:id/workitems"
+          element={
+            user ? (
+              <Layout>
+                <WorkItems user={user} profile={profile} />
+              </Layout>
+            ) : (
+              <Navigate to="/" />
+            )
+          }
+        />
+
         {/* PERSONAL DASHBOARD */}
         <Route
           path="/dashboard"
@@ -106,14 +123,21 @@ export default function App() {
           }
         />
 
-        {/* PERSONAL WORK ITEMS */}
+        {/* ✅ WORKITEMS (STICKY ORG MODE)
+            If activeOrgId exists → redirect to org workitems
+            Otherwise → normal personal workitems
+        */}
         <Route
           path="/workitems"
           element={
             user ? (
-              <Layout>
-                <WorkItems user={user} profile={profile} />
-              </Layout>
+              activeOrgId ? (
+                <Navigate to={`/org/${activeOrgId}/workitems`} />
+              ) : (
+                <Layout>
+                  <WorkItems user={user} profile={profile} />
+                </Layout>
+              )
             ) : (
               <Navigate to="/" />
             )

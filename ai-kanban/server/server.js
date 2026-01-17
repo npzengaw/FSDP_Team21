@@ -23,7 +23,7 @@ async function processTaskWithClaude(history) {
         model: "anthropic/claude-3-haiku",
         messages: [
           { role: "system", content: "You are an expert AI coding assistant. Be concise." },
-          ...history // Pass full conversation
+          ...history,
         ],
       }),
     });
@@ -43,6 +43,9 @@ const taskSelect = `
   title,
   status,
   user_id,
+  assigned_to,
+  organisation_id,
+  is_main_board,
   created_at,
   updated_at,
   ai_output,
@@ -54,18 +57,39 @@ const taskSelect = `
   )
 `;
 
-
+// ✅ Personal board should show:
+// - personal tasks: organisation_id IS NULL AND user_id = me
+// - assigned tasks: assigned_to = me
 async function getPersonalTasks(userId) {
   if (!userId) return [];
 
   const { data, error } = await supabase
     .from("tasks")
     .select(taskSelect)
-    .eq("user_id", userId)
+    .or(`and(organisation_id.is.null,user_id.eq.${userId}),assigned_to.eq.${userId}`)
     .order("created_at", { ascending: false });
 
   if (error) {
     console.error("getPersonalTasks error:", error);
+    return [];
+  }
+  return data || [];
+}
+
+// ✅ Org WorkItems should show shared backlog:
+// organisation_id = orgId AND is_main_board = true
+async function getOrgWorkItems(orgId) {
+  if (!orgId) return [];
+
+  const { data, error } = await supabase
+    .from("tasks")
+    .select(taskSelect)
+    .eq("organisation_id", orgId)
+    .eq("is_main_board", true)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("getOrgWorkItems error:", error);
     return [];
   }
   return data || [];
@@ -83,19 +107,69 @@ async function emitPersonalTasks(io, userId) {
 
 // ====================== EXPRESS + SOCKET ======================
 const app = express();
-app.use(cors());
+
+/* ✅ FIX: CORS must allow BOTH localhost and 127.0.0.1 */
+const ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"];
+
+app.use(
+  cors({
+    origin: ALLOWED_ORIGINS,
+    credentials: true,
+  })
+);
 
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000"],
+    origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
+app.get("/health", (req, res) => res.send("ok"));
+
+// ====================== REALTIME BRIDGE (Supabase -> Socket.io) ======================
+supabase
+  .channel("tasks-realtime-bridge")
+  .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, async (payload) => {
+    try {
+      const newRow = payload.new || null;
+      const oldRow = payload.old || null;
+
+      // 1) Personal rooms to refresh (creator + assignee + previous ones)
+      const affectedUserIds = new Set();
+
+      if (newRow?.user_id) affectedUserIds.add(newRow.user_id);
+      if (newRow?.assigned_to) affectedUserIds.add(newRow.assigned_to);
+
+      if (oldRow?.user_id) affectedUserIds.add(oldRow.user_id);
+      if (oldRow?.assigned_to) affectedUserIds.add(oldRow.assigned_to);
+
+      for (const uid of affectedUserIds) {
+        if (!uid) continue;
+        const tasks = await getPersonalTasks(uid);
+        io.to(`user:${uid}`).emit("updateTasks", tasks);
+      }
+
+      // 2) Org room to refresh (shared backlog)
+      const changedOrgId = newRow?.organisation_id || oldRow?.organisation_id;
+      const isMain = (newRow?.is_main_board ?? oldRow?.is_main_board) === true;
+
+      if (changedOrgId && isMain) {
+        const orgTasks = await getOrgWorkItems(changedOrgId);
+        io.to(`org:${changedOrgId}`).emit("updateOrgTasks", orgTasks);
+      }
+    } catch (e) {
+      console.error("Realtime bridge handler error:", e);
+    }
+  })
+  .subscribe((status) => console.log("📡 tasks-realtime-bridge status:", status));
+
 // ====================== SOCKET EVENTS ======================
 io.on("connection", async (socket) => {
-  const { userId } = socket.handshake.query;
+  const { userId, orgId } = socket.handshake.query;
 
   if (!userId) {
     console.log("❌ Socket missing userId, disconnecting");
@@ -103,101 +177,96 @@ io.on("connection", async (socket) => {
     return;
   }
 
-  socket.userId = userId;
-
-  // Join user room
+  // Personal room always
   socket.join(`user:${userId}`);
-  console.log(`🔗 User ${socket.id} joined Personal Room user:${userId}`);
-
-  // Initial load
   socket.emit("loadTasks", await getPersonalTasks(userId));
 
-  // Add task
+  // Org room only when orgId exists (WorkItems org mode)
+  if (orgId) {
+    socket.join(`org:${orgId}`);
+    socket.emit("loadOrgTasks", await getOrgWorkItems(orgId));
+  }
+
+  // ===== Personal board actions =====
   socket.on("addTask", async ({ title }) => {
     if (!title || !String(title).trim()) return;
+
     const { error } = await supabase.from("tasks").insert([
       {
         title: String(title).trim(),
-        user_id: socket.userId,
-        ai_history: [], // <-- initialize AI chat history
+        user_id: userId,
+        ai_history: [],
+        ai_status: "idle",
       },
-  ]);
+    ]);
 
-    if (error) {
-      console.error("Add task error:", error);
-      return;
-    }
+    if (error) return console.error("Add task error:", error);
 
-    await emitPersonalTasks(io, socket.userId);
+    await emitPersonalTasks(io, userId);
   });
 
-  // Move task
   socket.on("taskMoved", async ({ taskId, newStatus }) => {
     if (!taskId || !newStatus) return;
 
-    await updateTask(taskId, { status: newStatus, updated_at: new Date().toISOString() });
-    await emitPersonalTasks(io, socket.userId);
+    await updateTask(taskId, {
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    });
+
+    await emitPersonalTasks(io, userId);
   });
 
-  // Rename task
   socket.on("renameTask", async ({ taskId, newTitle }) => {
     if (!taskId || !newTitle || !String(newTitle).trim()) return;
 
     await updateTask(taskId, { title: String(newTitle).trim() });
-    await emitPersonalTasks(io, socket.userId);
+    await emitPersonalTasks(io, userId);
   });
 
-  // Delete task
   socket.on("deleteTask", async ({ taskId }) => {
     if (!taskId) return;
 
     const { error } = await supabase.from("tasks").delete().eq("id", taskId);
     if (error) console.error("Delete error:", error);
 
-    await emitPersonalTasks(io, socket.userId);
+    await emitPersonalTasks(io, userId);
   });
 
-  // AI Prompt handler
-socket.on("aiPrompt", async ({ taskId, prompt }) => {
-  if (!taskId || !prompt) return;
+  socket.on("aiPrompt", async ({ taskId, prompt }) => {
+    if (!taskId || !prompt) return;
 
-  // 1️⃣ Get existing task history
-  const { data: task } = await supabase
-    .from("tasks")
-    .select("ai_history,user_id")
-    .eq("id", taskId)
-    .single();
+    const { data: task, error } = await supabase
+      .from("tasks")
+      .select("ai_history,user_id")
+      .eq("id", taskId)
+      .single();
 
-  const history = task.ai_history || [];
+    if (error || !task) {
+      console.error("aiPrompt fetch task error:", error);
+      return;
+    }
 
-  // 2️⃣ Add user's message
-  history.push({ role: "user", content: prompt });
+    const history = task.ai_history || [];
+    history.push({ role: "user", content: prompt });
 
-  // 3️⃣ Mark task as thinking
-  await updateTask(taskId, { ai_status: "thinking", ai_history: history });
-  await emitPersonalTasks(io, socket.userId);
+    await updateTask(taskId, { ai_status: "thinking", ai_history: history });
+    await emitPersonalTasks(io, task.user_id);
 
-  // 4️⃣ Get AI response
-  const { output, modelUsed } = await processTaskWithClaude(history);
+    const { output, modelUsed } = await processTaskWithClaude(history);
 
-  // 5️⃣ Add AI response to history
-  history.push({ role: "assistant", content: output });
+    history.push({ role: "assistant", content: output });
 
-  // 6️⃣ Save updated history
-  await updateTask(taskId, { ai_history: history, ai_agent: modelUsed, ai_status: "done" });
+    await updateTask(taskId, {
+      ai_history: history,
+      ai_agent: modelUsed,
+      ai_status: "done",
+      ai_output: output,
+      updated_at: new Date().toISOString(),
+    });
 
-  // 7️⃣ Send updated tasks to client
-  await emitPersonalTasks(io, task.user_id);
-});
-
-
-  socket.on("disconnect", () => {
-    console.log(`❌ User disconnected: ${socket.id}`);
+    await emitPersonalTasks(io, task.user_id);
   });
 });
-
-// ====================== AI AUTO LOOP (PERSONAL-AWARE) ======================
-
 
 // ====================== START SERVER ======================
 const PORT = process.env.PORT || 5000;

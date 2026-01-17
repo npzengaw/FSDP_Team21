@@ -1,5 +1,4 @@
-
-/* WorkItems.css */
+/* WorkItems.css (UPDATED – fixed Task Details modal overflow + less cramped) */
 
 .workitems-container {
   min-height: 100vh;
@@ -298,7 +297,7 @@
   align-items: center;
   padding: 10px 20px;
   cursor: pointer;
-  background: #ede8ff; /* Option A */
+  background: #ede8ff;
 }
 
 .section-title {
@@ -347,6 +346,7 @@
 
 .task-list {
   border-top: 1px solid #e5e7f0;
+  overflow-x: auto;
 }
 
 .task-header {
@@ -376,12 +376,6 @@
   background: #fafafa;
 }
 
-.col-checkbox input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
 .col-task {
   font-weight: 500;
   color: #111827;
@@ -409,13 +403,56 @@
   font-weight: 500;
 }
 
-
-
 .col-people {
   display: flex;
   align-items: center;
 }
 
+/* ===========================
+   NEW: Boxed Select (People + Priority)
+   - Priority now looks like "Assign to" select
+   - Disabled = cannot be changed
+=========================== */
+.boxed-select {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  font-size: 13px;
+  background: #fff;
+  min-width: 140px;
+}
+
+.boxed-select.priority-box {
+  min-width: 110px;
+}
+
+/* show disabled state clearly */
+.boxed-select:disabled {
+  opacity: 0.85;
+  cursor: not-allowed;
+  background: #ffffff;
+}
+
+/* keep priority colors INSIDE a boxed select */
+.boxed-select.priority-high {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.boxed-select.priority-medium {
+  background: #fef3c7;
+  color: #d97706;
+  border-color: #fde68a;
+}
+
+.boxed-select.priority-low {
+  background: #dbeafe;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
+/* (legacy) priority badge remains, in case other parts use it */
 .priority-badge {
   display: inline-block;
   padding: 5px 11px;
@@ -443,14 +480,6 @@
   border-color: #bfdbfe;
 }
 
-.status-select {
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  font-size: 12px;
-  background: white;
-}
-
 .empty-state {
   padding: 40px 24px;
   text-align: center;
@@ -458,23 +487,11 @@
   font-size: 14px;
 }
 
-/* Add new column row */
-
-.add-column-row {
-  margin-top: 8px;
-  padding: 12px 4px 40px 4px;
-  font-size: 13px;
-  color: #6b7280;
-}
-
 /* Modal Styles */
 
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
@@ -556,7 +573,6 @@
 }
 
 /* Responsive */
-
 @media (max-width: 1200px) {
   .task-header,
   .task-row {
@@ -626,12 +642,6 @@
     position: relative;
   }
 
-  .col-checkbox {
-    position: absolute;
-    left: 14px;
-    top: 14px;
-  }
-
   .col-task {
     padding-left: 28px;
     font-size: 15px;
@@ -673,9 +683,8 @@
     border-radius: 0;
   }
 }
-.task-list {
-  overflow-x: auto;
-}
+
+/* extra bits you already had */
 .col-arrow {
   width: 30px;
   cursor: pointer;
@@ -683,10 +692,10 @@
   color: #6b7280;
   font-weight: 600;
 }
-
 .col-arrow:hover {
   color: #111827;
 }
+
 .delete-dash {
   width: 28px;
   height: 28px;
@@ -698,43 +707,84 @@
   font-weight: 600;
   line-height: 1;
 }
-
 .delete-dash:hover {
   background: #e5e7eb;
   color: #dc2626;
 }
+
+/* ===========================
+   Task Details Modal (SCROLL MODAL, NOT AI BOX)
+=========================== */
 .task-modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.45);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 2000;
+  padding: 20px;
 }
 
 .task-modal {
   background: white;
-  padding: 28px;
-  border-radius: 12px;
-  width: 500px;
-  max-width: 90%;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.25);
-}
-
-.ai-output-box {
-  background: #f6f6f9;
-  padding: 14px;
-  border-radius: 8px;
-  white-space: pre-wrap;
-  font-family: monospace;
-  font-size: 13px;
-  max-height: 200px;
+  border-radius: 16px;
+  width: min(820px, 92vw);
+  max-height: 85vh;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
   overflow-y: auto;
 }
+
+.task-modal h2 {
+  margin: 0 0 12px 0;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+}
+
+.task-modal p {
+  margin: 10px 0;
+  line-height: 1.45;
+  color: #111827;
+}
+
+/* Description box */
+.task-description-box {
+  margin-top: 6px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+/* AI output as a CLICKABLE box */
+.ai-output-box {
+  width: 100%;
+  min-height: 260px;
+  margin-top: 8px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f6f6f9;
+  border: 1px solid #e5e7eb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #111827;
+  resize: none;
+  outline: none;
+  cursor: text;
+  overflow: visible;
+}
+
+.task-modal .btn-primary {
+  margin-top: 14px;
+}
+
+/* Generic type fallback */
 .type-generic {
   background: #e5e7eb;
   color: #374151;

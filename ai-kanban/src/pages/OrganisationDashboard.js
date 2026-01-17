@@ -248,7 +248,10 @@ export default function OrganisationDashboard({ user, profile }) {
               <div style={styles.buttonRow}>
                 <button
                   style={styles.secondaryBtn}
-                  onClick={() => navigate(`/org/${org.id}`)}
+                    onClick={() => {
+                      localStorage.setItem("activeOrgId", org.id);
+                      navigate(`/org/${org.id}/workitems`);
+                    }}
                 >
                   Open →
                 </button>

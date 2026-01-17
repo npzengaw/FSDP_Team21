@@ -1,8 +1,8 @@
-/** PERSONAL-ONLY WORKITEMS.JS (NO ORG, NO MAIN BOARD) **/
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { ChevronDown, ChevronRight, Plus, X, Search, Tag } from "lucide-react";
 import { supabase } from "./supabaseClient";
+import { io } from "socket.io-client";
 import "./WorkItems.css";
 
 /* ----------------------- AVATAR COLORS ----------------------- */
@@ -19,17 +19,14 @@ const AVATAR_COLORS = [
 
 const getAvatarColor = (userId) => {
   if (!userId) return AVATAR_COLORS[0];
-  const index = userId
-    .split("")
-    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const index = userId.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
   return AVATAR_COLORS[index % AVATAR_COLORS.length];
 };
 
 const ProfileAvatar = ({ profile }) => {
   if (!profile) return null;
-
   const initial = profile.username?.charAt(0).toUpperCase() || "?";
-  const bgColor = profile.avatar_colour || getAvatarColor(profile.id);
+  const bgColor = profile.avatar_color || getAvatarColor(profile.id);
 
   if (profile.avatar_url) {
     return (
@@ -67,20 +64,17 @@ const TYPE_COLORS = [
 const getTypeColor = (typeName) => {
   if (!typeName || typeof typeName !== "string") return "#e5e7eb";
   const safe = String(typeName).toLowerCase();
-
-  const hash = safe
-    .split("")
-    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-
+  const hash = safe.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
   return TYPE_COLORS[hash % TYPE_COLORS.length];
 };
 
-/* ----------------------- MAIN ----------------------- */
-const WorkItems = ({ user, profile }) => {
+export default function WorkItems({ user, profile }) {
   const navigate = useNavigate();
+  const { id: orgId } = useParams();
+  const isOrgMode = !!orgId;
 
   const [tasks, setTasks] = useState([]);
-  const [assignedProfiles, setAssignedProfiles] = useState([]); // profiles for assigned_to dropdown
+  const [assignedProfiles, setAssignedProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedTask, setSelectedTask] = useState(null);
@@ -103,66 +97,106 @@ const WorkItems = ({ user, profile }) => {
     estimation: "",
   });
 
-  /* ----------------------- AUTH GUARD ----------------------- */
+  // ===== AUTH GUARD =====
   useEffect(() => {
     if (!user) navigate("/");
   }, [user, navigate]);
 
-  /* ----------------------- LOAD TASKS + REALTIME (PERSONAL ONLY) ----------------------- */
+  // =========================================================
+  // ✅ LIVE TASKS VIA SOCKET (PERSONAL + ORG)
+  // ✅ FIXED: this MUST be useEffect, not (() => {})
+  // =========================================================
   useEffect(() => {
     if (!user) return;
 
-    const fetchTasks = async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+    setLoading(true);
 
-      if (error) console.error("fetchTasks error:", error);
+    const s = io("http://localhost:5000", {
+      transports: ["polling", "websocket"],
+      query: isOrgMode ? { userId: user.id, orgId } : { userId: user.id },
+    });
 
-      setTasks(data || []);
+    const onLoadPersonal = (list) => {
+      if (Array.isArray(list)) setTasks(list);
       setLoading(false);
     };
+    const onUpdatePersonal = (list) => {
+      if (Array.isArray(list)) setTasks(list);
+    };
 
-    fetchTasks();
+    const onLoadOrg = (list) => {
+      if (Array.isArray(list)) setTasks(list);
+      setLoading(false);
+    };
+    const onUpdateOrg = (list) => {
+      if (Array.isArray(list)) setTasks(list);
+    };
 
-    // Realtime: listen only to changes that affect THIS user's tasks
-    const channel = supabase
-      .channel(`tasks_personal_${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "tasks",
-          filter: `user_id=eq.${user.id}`,
-        },
-        fetchTasks
-      )
-      .subscribe();
+    s.on("loadTasks", onLoadPersonal);
+    s.on("updateTasks", onUpdatePersonal);
+    s.on("loadOrgTasks", onLoadOrg);
+    s.on("updateOrgTasks", onUpdateOrg);
 
-    return () => supabase.removeChannel(channel);
-  }, [user]);
+    s.on("connect_error", (e) => {
+      console.log("❌ WorkItems socket error:", e?.message || e);
+      setLoading(false);
+    });
 
-  /* ----------------------- LOAD ASSIGNEE PROFILES (OPTIONAL) -----------------------
-     If you still want "Assign to" dropdown, we can load all profiles.
-     If you only want self-assignment, you can remove this block.
-  */
+    return () => {
+      s.off("loadTasks", onLoadPersonal);
+      s.off("updateTasks", onUpdatePersonal);
+      s.off("loadOrgTasks", onLoadOrg);
+      s.off("updateOrgTasks", onUpdateOrg);
+      s.disconnect();
+    };
+  }, [user, isOrgMode, orgId]);
+
+  // =========================================================
+  // ✅ KEEP MODAL IN SYNC WITH LIVE TASK UPDATES
+  // (So selectedTask doesn't go stale when tasks update)
+  // =========================================================
   useEffect(() => {
-    const loadProfiles = async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, username, avatar_url, avatar_colour");
+    if (!selectedTask) return;
+    const fresh = tasks.find((t) => t.id === selectedTask.id);
+    if (fresh) setSelectedTask(fresh);
+  }, [tasks, selectedTask]);
 
-      if (error) console.error("loadProfiles error:", error);
-      setAssignedProfiles(Array.isArray(data) ? data : []);
+  // ===== LOAD ASSIGNEES =====
+  useEffect(() => {
+    if (!user) return;
+
+    const loadProfiles = async () => {
+      if (!isOrgMode) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, username, avatar_url, avatar_color");
+
+        if (error) console.error("loadProfiles error:", error);
+        setAssignedProfiles(Array.isArray(data) ? data : []);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("organisation_members")
+        .select(
+          "user_id, profiles:profiles(id, username, avatar_url, avatar_color)"
+        )
+        .eq("organisation_id", orgId);
+
+      if (error) {
+        console.error("loadOrgMembers error:", error);
+        setAssignedProfiles([]);
+        return;
+      }
+
+      const members = (data || []).map((row) => row.profiles).filter(Boolean);
+      setAssignedProfiles(members);
     };
 
     loadProfiles();
-  }, []);
+  }, [user, isOrgMode, orgId]);
 
-  /* ----------------------- FILTERS ----------------------- */
+  // ===== FILTERS =====
   const matchesSearch = (item) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -181,23 +215,49 @@ const WorkItems = ({ user, profile }) => {
   const getPriorityClass = (p) =>
     p ? `priority-${p.toLowerCase()}` : "priority-medium";
 
-  /* ----------------------- ACTIONS ----------------------- */
+  // ===== ACTIONS =====
   const handleDeleteTask = async (taskId) => {
     if (!window.confirm("Delete this task?")) return;
+
+    const prev = tasks;
+
+    // ✅ Optimistic UI
+    setTasks((cur) => cur.filter((t) => t.id !== taskId));
+
     const { error } = await supabase.from("tasks").delete().eq("id", taskId);
-    if (error) console.error("delete error:", error);
+    if (error) {
+      console.error("delete error:", error);
+      setTasks(prev); // rollback
+    }
   };
+
+  // ✅ FIXED: removed stray `useEffect` line here
 
   const handleCreateTask = async () => {
     if (!newTask.title.trim()) return;
-
     const status = taskLocation.split(":")[1];
 
     const payload = {
       ...newTask,
       status,
-      user_id: user.id, // PERSONAL ONLY
+      user_id: user.id,
     };
+
+    if (isOrgMode) {
+      payload.organisation_id = orgId;
+      payload.is_main_board = true;
+
+      // ✅ must assign in org mode
+      if (!payload.assigned_to) {
+        alert(
+          "Please assign this task to someone so it appears on their Kanban board."
+        );
+        return;
+      }
+    } else {
+      payload.organisation_id = null;
+      payload.is_main_board = false;
+    }
 
     const { error } = await supabase.from("tasks").insert([payload]);
     if (error) console.error("create error:", error);
@@ -214,7 +274,49 @@ const WorkItems = ({ user, profile }) => {
     });
   };
 
-  /* ----------------------- RENDER ----------------------- */
+  const handleAssignChange = async (taskId, assignedTo) => {
+    const prev = tasks;
+
+    // ✅ Optimistic UI
+    setTasks((cur) =>
+      cur.map((t) =>
+        t.id === taskId ? { ...t, assigned_to: assignedTo || null } : t
+      )
+    );
+
+    const { error } = await supabase
+      .from("tasks")
+      .update({ assigned_to: assignedTo || null })
+      .eq("id", taskId);
+
+    if (error) {
+      console.error("assign update error:", error);
+      setTasks(prev); // rollback
+    }
+  };
+
+  // ✅ priority change handler (persist + rollback)
+  const handlePriorityChange = async (taskId, priority) => {
+    const prev = tasks;
+
+    // ✅ Optimistic UI
+    setTasks((cur) =>
+      cur.map((t) => (t.id === taskId ? { ...t, priority } : t))
+    );
+
+    const { error } = await supabase
+      .from("tasks")
+      .update({ priority })
+      .eq("id", taskId);
+
+    if (error) {
+      console.error("priority update error:", error);
+      setTasks(prev); // rollback
+    }
+    // Realtime propagation is handled by your backend bridge (Supabase changes -> Socket rooms)
+  };
+
+  // ===== RENDER =====
   if (loading) return <div className="loading">Loading...</div>;
 
   return (
@@ -226,7 +328,7 @@ const WorkItems = ({ user, profile }) => {
             {profile?.username?.charAt(0).toUpperCase() || "P"}
           </div>
           <div>
-            <h1>Personal Work Items</h1>
+            <h1>{isOrgMode ? "Organisation Work Items" : "Personal Work Items"}</h1>
             <p>
               Logged in as: <strong>{profile?.username}</strong>
             </p>
@@ -234,7 +336,6 @@ const WorkItems = ({ user, profile }) => {
         </div>
 
         <div className="header-right">
-          {/* Show your own avatar */}
           <div className="members">
             <ProfileAvatar profile={profile} />
           </div>
@@ -247,12 +348,22 @@ const WorkItems = ({ user, profile }) => {
           Kanban Board
         </button>
         <button className="top-tab active">Work Items</button>
+
+        {isOrgMode && (
+          <button
+            className="top-tab"
+            onClick={() => navigate("/organisations")}
+            style={{ marginLeft: "auto" }}
+          >
+            Organisations
+          </button>
+        )}
       </div>
 
       {/* NAV */}
       <div className="workitems-nav">
         <div style={{ color: "#666", fontSize: 13 }}>
-          Personal tasks only
+          {isOrgMode ? "Shared org backlog (all members)" : "Personal tasks + assigned tasks"}
         </div>
 
         <div className="nav-actions">
@@ -300,7 +411,6 @@ const WorkItems = ({ user, profile }) => {
                 ) : (
                   <ChevronRight size={18} />
                 )}
-
                 <h3>
                   {status === "todo"
                     ? "To Do"
@@ -308,7 +418,6 @@ const WorkItems = ({ user, profile }) => {
                     ? "In Progress"
                     : "Completed"}
                 </h3>
-
                 <span className="count">{getItemsByStatus(status).length}</span>
               </div>
             </div>
@@ -319,7 +428,6 @@ const WorkItems = ({ user, profile }) => {
                   <div className="empty-state">No tasks yet.</div>
                 ) : (
                   <>
-                    {/* HEADER */}
                     <div className="task-header">
                       <div className="col-task">Task</div>
                       <div className="col-description">Description</div>
@@ -330,12 +438,15 @@ const WorkItems = ({ user, profile }) => {
                       <div className="col-actions"></div>
                     </div>
 
-                    {/* TASK ROWS */}
                     {getItemsByStatus(status).map((item) => {
                       const safeType =
                         typeof item.type === "string" && item.type.trim() !== ""
                           ? item.type
                           : "-";
+
+                      const assignedProfile = item.assigned_to
+                        ? getProfileById(item.assigned_to)
+                        : null;
 
                       return (
                         <div key={item.id} className="task-row">
@@ -367,8 +478,31 @@ const WorkItems = ({ user, profile }) => {
                           </div>
 
                           <div className="col-people">
-                            {item.assigned_to && getProfileById(item.assigned_to) ? (
-                              <ProfileAvatar profile={getProfileById(item.assigned_to)} />
+                            {isOrgMode ? (
+                              <select
+                                value={item.assigned_to ?? ""}
+                                onChange={(e) =>
+                                  handleAssignChange(item.id, e.target.value || null)
+                                }
+                                style={{
+                                  padding: "6px 10px",
+                                  borderRadius: 10,
+                                  border: "1px solid #ddd",
+                                  fontSize: 13,
+                                  background: "#fff",
+                                }}
+                              >
+                                <option value="" disabled hidden>
+                                  Unassigned
+                                </option>
+                                {assignedProfiles.map((p) => (
+                                  <option value={p.id} key={p.id}>
+                                    {p.username}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : assignedProfile ? (
+                              <ProfileAvatar profile={assignedProfile} />
                             ) : (
                               <span style={{ color: "#999", fontSize: 12 }}>
                                 Unassigned
@@ -376,14 +510,24 @@ const WorkItems = ({ user, profile }) => {
                             )}
                           </div>
 
+                          {/* ✅ PRIORITY EDITABLE */}
                           <div className="col-priority">
-                            <span
-                              className={`priority-badge ${getPriorityClass(
-                                item.priority
-                              )}`}
+                            <select
+                              value={item.priority || "Medium"}
+                              onChange={(e) =>
+                                handlePriorityChange(item.id, e.target.value)
+                              }
+                              className={`priority-badge ${getPriorityClass(item.priority)}`}
+                              style={{
+                                border: "none",
+                                cursor: "pointer",
+                                backgroundColor: "transparent",
+                              }}
                             >
-                              {item.priority || "Medium"}
-                            </span>
+                              <option value="Low">Low</option>
+                              <option value="Medium">Medium</option>
+                              <option value="High">High</option>
+                            </select>
                           </div>
 
                           <div className="col-actions">
@@ -408,10 +552,7 @@ const WorkItems = ({ user, profile }) => {
 
       {/* MODAL — TASK DETAILS */}
       {selectedTask && (
-        <div
-          className="task-modal-overlay"
-          onClick={() => setSelectedTask(null)}
-        >
+        <div className="task-modal-overlay" onClick={() => setSelectedTask(null)}>
           <div className="task-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Task Details</h2>
 
@@ -420,6 +561,15 @@ const WorkItems = ({ user, profile }) => {
             </p>
 
             <p>
+              <strong>Description:</strong>
+            </p>
+            <div className="task-description-box">
+              {selectedTask.description && selectedTask.description.trim()
+                ? selectedTask.description
+                : "None"}
+            </div>
+
+            <p style={{ marginTop: 12 }}>
               <strong>AI Agent:</strong> {selectedTask.ai_agent || "None"}
             </p>
 
@@ -427,11 +577,29 @@ const WorkItems = ({ user, profile }) => {
               <strong>AI Output:</strong>
             </p>
 
-            <pre className="ai-output-box">
-              {selectedTask.ai_output || "No AI output."}
-            </pre>
+            <textarea
+              className="ai-output-box"
+              readOnly
+              value={(() => {
+                const out = selectedTask.ai_output;
+                if (out && String(out).trim()) return out;
 
-            <button className="btn-primary" onClick={() => setSelectedTask(null)} type="button">
+                const hist = Array.isArray(selectedTask.ai_history)
+                  ? selectedTask.ai_history
+                  : [];
+                const lastAssistant = [...hist]
+                  .reverse()
+                  .find((m) => m?.role === "assistant" && m?.content);
+
+                return lastAssistant?.content || "No AI output.";
+              })()}
+            />
+
+            <button
+              className="btn-primary"
+              onClick={() => setSelectedTask(null)}
+              type="button"
+            >
               Close
             </button>
           </div>
@@ -444,7 +612,11 @@ const WorkItems = ({ user, profile }) => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Create New Task</h2>
-              <button className="btn-icon" onClick={() => setShowNewTaskModal(false)} type="button">
+              <button
+                className="btn-icon"
+                onClick={() => setShowNewTaskModal(false)}
+                type="button"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -454,7 +626,9 @@ const WorkItems = ({ user, profile }) => {
                 <label>Task Title *</label>
                 <input
                   value={newTask.title}
-                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, title: e.target.value })
+                  }
                   placeholder="Enter task title"
                 />
               </div>
@@ -482,7 +656,6 @@ const WorkItems = ({ user, profile }) => {
                 />
               </div>
 
-              {/* placement */}
               <div className="form-group">
                 <label>Placement</label>
                 <select
@@ -502,7 +675,9 @@ const WorkItems = ({ user, profile }) => {
                     type="text"
                     placeholder="Enter any task type"
                     value={newTask.type}
-                    onChange={(e) => setNewTask({ ...newTask, type: e.target.value })}
+                    onChange={(e) =>
+                      setNewTask({ ...newTask, type: e.target.value })
+                    }
                   />
                 </div>
 
@@ -524,7 +699,7 @@ const WorkItems = ({ user, profile }) => {
               <div className="form-group">
                 <label>Assign to</label>
                 <select
-                  value={newTask.assigned_to || ""}
+                  value={newTask.assigned_to ?? ""}
                   onChange={(e) =>
                     setNewTask({
                       ...newTask,
@@ -532,22 +707,38 @@ const WorkItems = ({ user, profile }) => {
                     })
                   }
                 >
-                  <option value="">Unassigned</option>
+                  <option value="" disabled hidden>
+                    Unassigned
+                  </option>
                   {assignedProfiles.map((p) => (
                     <option value={p.id} key={p.id}>
                       {p.username}
                     </option>
                   ))}
                 </select>
+
+                {isOrgMode && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: "#777" }}>
+                    Only org members are shown here.
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setShowNewTaskModal(false)} type="button">
+              <button
+                className="btn-secondary"
+                onClick={() => setShowNewTaskModal(false)}
+                type="button"
+              >
                 Cancel
               </button>
 
-              <button className="btn-primary" onClick={handleCreateTask} type="button">
+              <button
+                className="btn-primary"
+                onClick={handleCreateTask}
+                type="button"
+              >
                 Create Task
               </button>
             </div>
@@ -556,6 +747,4 @@ const WorkItems = ({ user, profile }) => {
       )}
     </div>
   );
-};
-
-export default WorkItems;
+}

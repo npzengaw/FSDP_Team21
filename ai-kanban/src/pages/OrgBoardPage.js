@@ -12,26 +12,28 @@ export default function OrgBoardPage({ user }) {
     const s = io("http://localhost:5000", {
       transports: ["websocket"],
       query: {
-        userId: user.id, // ✅ PERSONAL ONLY
+        userId: user.id,
       },
     });
 
     setSocket(s);
 
-    s.on("loadTasks", (taskList) => {
-      if (Array.isArray(taskList)) setTasks(taskList);
+    s.on("loadTasks", (list) => {
+      if (Array.isArray(list)) setTasks(list);
     });
 
-    s.on("updateTasks", (taskList) => {
-      if (Array.isArray(taskList)) setTasks(taskList);
+    s.on("updateTasks", (list) => {
+      if (Array.isArray(list)) setTasks(list);
     });
 
-    return () => s.disconnect();
+    return () => {
+      s.disconnect();
+    };
   }, [user]);
 
-  return socket ? (
-    <KanbanBoard socket={socket} tasks={tasks} user={user} />
-  ) : (
-    <p style={{ padding: "20px" }}>Connecting to board...</p>
-  );
+  if (!socket) {
+    return <p style={{ padding: 20 }}>Connecting to board...</p>;
+  }
+
+  return <KanbanBoard socket={socket} tasks={tasks} user={user} />;
 }
