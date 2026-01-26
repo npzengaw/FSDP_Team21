@@ -1,9 +1,7 @@
 // Dashboard.js
 import "./Dashboard.css";
 import React, { useEffect, useMemo, useState } from "react";
-import io from "socket.io-client";
-
-
+import { supabase } from "./supabaseClient";
 
 const TIME_RANGES = ["today", "7d", "30d", "all"];
 
@@ -14,7 +12,7 @@ const rangeLabel = {
   all: "All time",
 };
 
-// Your Kanban statuses (from KanbanBoard.js)
+// Kanban statuses
 const STATUS_TODO = "todo";
 const STATUS_PROGRESS = "progress";
 const STATUS_DONE = "done";
@@ -37,14 +35,12 @@ function safeDate(d) {
 }
 
 function dayKeyLocal(d) {
-  // YYYY-MM-DD (local)
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
 
-// Build points for a polyline from "done tasks per day" for last N days
 function buildDoneTrendPolyline(tasks, daysCount = 7, width = 480, height = 120) {
   const now = new Date();
   const days = [];
@@ -72,7 +68,7 @@ function buildDoneTrendPolyline(tasks, daysCount = 7, width = 480, height = 120)
 
   const pts = values.map((v, i) => {
     const x = i * stepX;
-    const y = height - (v / maxY) * (height - 10); // padding
+    const y = height - (v / maxY) * (height - 10);
     return `${x},${y}`;
   });
 
@@ -80,46 +76,81 @@ function buildDoneTrendPolyline(tasks, daysCount = 7, width = 480, height = 120)
 }
 
 export default function Dashboard({ user, profile }) {
-  console.log("DASH user:", user?.id);
+  const uid = user?.id;
+
+  // ✅ org sync source (you already set this in KanbanBoard.js)
+  const activeOrgId = useMemo(() => {
+    return localStorage.getItem("activeOrgId") || null;
+  }, []);
+
+  const isOrgMode = !!activeOrgId;
 
   const [timeRange, setTimeRange] = useState("today");
-
-  // real tasks from socket
   const [tasks, setTasks] = useState([]);
+  const [liveConnected, setLiveConnected] = useState(false);
 
-  // live connection indicator
-  const [socketConnected, setSocketConnected] = useState(false);
-
-  // OPTIONAL: if you have a different backend URL in Codespaces, replace this:
-  const SERVER_URL = "http://localhost:5000";
-
-  // ----- connect socket (Option 1: Dashboard owns its own socket) -----
+  // ---------------------------
+  // ✅ SAME TASK SCOPE AS KANBAN
+  // ---------------------------
   useEffect(() => {
-    if (!user?.id) return;
+    if (!uid) return;
 
-    const s = io(SERVER_URL, {
-      query: { userId: user.id },
-      transports: ["websocket"],
-    });
+    const fetchTasks = async () => {
+      let q = supabase
+        .from("tasks")
+        .select(`
+          id,
+          title,
+          description,
+          type,
+          priority,
+          estimation,
+          start_date,
+          end_date,
+          status,
+          user_id,
+          assigned_to,
+          organisation_id,
+          is_main_board,
+          created_at,
+          updated_at,
+          ai_output,
+          ai_agent,
+          ai_status,
+          profiles:user_id (username)
+        `)
+        .order("created_at", { ascending: false });
 
-    const onConnect = () => setSocketConnected(true);
-    const onDisconnect = () => setSocketConnected(false);
+      if (isOrgMode && activeOrgId) {
+  // ✅ WHOLE ORG
+  q = q.eq("organisation_id", activeOrgId);
+} else {
+  // personal only
+  q = q.is("organisation_id", null).eq("user_id", uid);
+}
 
-    s.on("connect", onConnect);
-    s.on("disconnect", onDisconnect);
 
-    s.on("loadTasks", (data) => setTasks(Array.isArray(data) ? data : []));
-    s.on("updateTasks", (data) => setTasks(Array.isArray(data) ? data : []));
+      const { data, error } = await q;
+      if (error) console.error("Dashboard fetchTasks error:", error);
+      setTasks(Array.isArray(data) ? data : []);
+    };
 
-    // in case it connects instantly
-    setSocketConnected(s.connected);
+    fetchTasks();
+
+    const channelName = `dashboard_tasks_${uid}_${isOrgMode ? activeOrgId : "personal"}`;
+
+    const channel = supabase
+      .channel(channelName)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, fetchTasks)
+      .subscribe((status) => {
+        // status can be "SUBSCRIBED" etc
+        setLiveConnected(status === "SUBSCRIBED");
+      });
 
     return () => {
-      s.off("connect", onConnect);
-      s.off("disconnect", onDisconnect);
-      s.disconnect();
+      supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [uid, isOrgMode, activeOrgId]);
 
   // ----- time range filtering -----
   const filteredTasks = useMemo(() => {
@@ -138,20 +169,11 @@ export default function Dashboard({ user, profile }) {
     const total = filteredTasks.length;
     const inProgress = filteredTasks.filter((t) => t.status === STATUS_PROGRESS).length;
     const completed = filteredTasks.filter((t) => t.status === STATUS_DONE).length;
-
-    // Overdue requires a due_date column. If you don't have it, keep 0 for now.
-    // If you DO have due_date, uncomment this:
-    // const now = new Date();
-    // const overdue = filteredTasks.filter(
-    //   (t) => t.due_date && safeDate(t.due_date) && safeDate(t.due_date) < now && t.status !== STATUS_DONE
-    // ).length;
-
     const overdue = 0;
-
     return { total, inProgress, completed, overdue };
   }, [filteredTasks]);
 
-  // ----- Agent panel (derived from tasks.ai_agent + ai_status) -----
+  // ----- Agent panel -----
   const agents = useMemo(() => {
     const map = new Map();
 
@@ -182,7 +204,6 @@ export default function Dashboard({ user, profile }) {
           ? "Completed"
           : "Idle";
 
-      // If you later store ai_progress in DB, use that instead.
       const progress =
         current?.ai_status === "thinking"
           ? 60
@@ -202,7 +223,7 @@ export default function Dashboard({ user, profile }) {
     });
   }, [filteredTasks]);
 
-  // ----- Analytics (simple but real) -----
+  // ----- Analytics -----
   const analytics = useMemo(() => {
     const total = metrics.total || 0;
     const completion = total === 0 ? 0 : Math.round((metrics.completed / total) * 100);
@@ -212,16 +233,14 @@ export default function Dashboard({ user, profile }) {
         ? 0
         : agents.filter((a) => a.status === "Running" || a.status === "Active").length / agents.length;
 
-    // crude but usable until you track completed_at / due_date
     const rangeDays = timeRange === "today" ? 1 : timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : 30;
     const throughput = Math.min(1, metrics.completed / Math.max(1, rangeDays));
-
     const efficiency = Math.min(1, (completion / 100) * (0.5 + utilization / 2));
 
     return { completion, utilization, throughput, efficiency };
   }, [metrics, agents, timeRange]);
 
-  // ----- Feed (derived) -----
+  // ----- Feed -----
   const combinedFeed = useMemo(() => {
     const recent = [...filteredTasks]
       .sort((a, b) => {
@@ -239,24 +258,29 @@ export default function Dashboard({ user, profile }) {
     });
   }, [filteredTasks]);
 
-  // ----- Line chart polyline points (real) -----
   const polyPoints = useMemo(() => {
-    // show a 7-day trend regardless of timeRange so chart always looks sensible
     return buildDoneTrendPolyline(tasks, 7, 480, 120);
   }, [tasks]);
 
   return (
     <div className="dashboard-body">
-      {/* PAGE HEADER */}
       <header className="dash-header-bar">
         <h1 className="page-title">Dashboard</h1>
         <div className="header-right">
           <input className="search-input" placeholder="Search tasks or agents..." />
-          <div className="user-chip">{socketConnected ? "ON" : "OFF"}</div>
+          <div className="user-chip">{liveConnected ? "ON" : "OFF"}</div>
         </div>
       </header>
 
-      {/* TOP KPI ROW */}
+      <div style={{ marginBottom: 10, fontSize: 13, color: "#6b7280" }}>
+        Mode: <b>{isOrgMode ? "Organisation" : "Personal"}</b>
+        {isOrgMode && activeOrgId ? (
+          <>
+            {" "}• Org ID: <b>{activeOrgId}</b>
+          </>
+        ) : null}
+      </div>
+
       <div className="stats-row">
         <div className="stats-card">
           <h4>Total Tasks</h4>
@@ -280,7 +304,6 @@ export default function Dashboard({ user, profile }) {
         </div>
       </div>
 
-      {/* TIME RANGE FILTER */}
       <div className="time-filter-row">
         <span className="time-filter-label">Time range:</span>
         <div className="time-filter-pills">
@@ -297,11 +320,8 @@ export default function Dashboard({ user, profile }) {
         </div>
       </div>
 
-      {/* MAIN GRID */}
       <div className="main-grid">
-        {/* TOP ROW: PIE + LINE */}
         <div className="grid-top">
-          {/* PIE + METRICS */}
           <section className="panel analytics-panel">
             <div className="panel-header">
               <h2>Workflow Analytics</h2>
@@ -309,12 +329,7 @@ export default function Dashboard({ user, profile }) {
             </div>
 
             <div className="analytics-top">
-              <div
-                className="analytics-donut"
-                style={{
-                  "--donut-stop": `${analytics.completion}%`,
-                }}
-              >
+              <div className="analytics-donut" style={{ "--donut-stop": `${analytics.completion}%` }}>
                 <div className="donut-inner">
                   <p>{analytics.completion}%</p>
                   <span>Overall progress</span>
@@ -325,37 +340,27 @@ export default function Dashboard({ user, profile }) {
                 <div className="metric-row">
                   <span>Agent Utilization</span>
                   <div className="metric-bar">
-                    <div
-                      className="metric-bar-fill"
-                      style={{ width: `${analytics.utilization * 100}%` }}
-                    />
+                    <div className="metric-bar-fill" style={{ width: `${analytics.utilization * 100}%` }} />
                   </div>
                 </div>
 
                 <div className="metric-row">
                   <span>Task Throughput</span>
                   <div className="metric-bar">
-                    <div
-                      className="metric-bar-fill"
-                      style={{ width: `${analytics.throughput * 100}%` }}
-                    />
+                    <div className="metric-bar-fill" style={{ width: `${analytics.throughput * 100}%` }} />
                   </div>
                 </div>
 
                 <div className="metric-row">
                   <span>AI Efficiency Score</span>
                   <div className="metric-bar">
-                    <div
-                      className="metric-bar-fill"
-                      style={{ width: `${analytics.efficiency * 100}%` }}
-                    />
+                    <div className="metric-bar-fill" style={{ width: `${analytics.efficiency * 100}%` }} />
                   </div>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* LINE CHART */}
           <section className="panel linechart-panel">
             <div className="panel-header">
               <h2>Workflow Efficiency</h2>
@@ -383,9 +388,7 @@ export default function Dashboard({ user, profile }) {
           </section>
         </div>
 
-        {/* BOTTOM ROW: FEED + AGENTS */}
         <div className="grid-bottom">
-          {/* LIVE FEED */}
           <section className="panel feed-panel">
             <div className="panel-header">
               <h2>Live Activity Feed</h2>
@@ -409,11 +412,10 @@ export default function Dashboard({ user, profile }) {
             </ul>
           </section>
 
-          {/* AGENT STATUS */}
           <section className="panel agent-panel">
             <div className="panel-header">
               <h2>Agent Status</h2>
-              <span className="panel-tag">{socketConnected ? "Live" : "Offline"}</span>
+              <span className="panel-tag">{liveConnected ? "Live" : "Offline"}</span>
             </div>
 
             {agents.length === 0 ? (
@@ -428,9 +430,7 @@ export default function Dashboard({ user, profile }) {
                       <strong>{agent.name}</strong>
                       <p className="agent-task">Task: {agent.task}</p>
                     </div>
-                    <span className={`agent-badge ${agent.status.toLowerCase()}`}>
-                      {agent.status}
-                    </span>
+                    <span className={`agent-badge ${agent.status.toLowerCase()}`}>{agent.status}</span>
                   </div>
 
                   <div className="agent-progress">
