@@ -254,10 +254,10 @@ io.on("connection", async (socket) => {
         ai_output: output,
         ai_agent: modelUsed,
         ai_status: "done",
+        status: "done", // ✅ THIS is what moves it to Done column
+        updated_at: new Date().toISOString(),
       })
       .eq("id", taskId);
-
-    await emitPersonalTasks(task.user_id);
   });
 
   socket.on("disconnect", () => {
