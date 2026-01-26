@@ -18,17 +18,28 @@ export default function Sidebar() {
     return match ? match[1] : null;
   };
 
-  const goKanban = () => {
+  const getActiveOrgId = () => {
     const orgIdFromUrl = getOrgIdFromPath();
     const savedOrgId = localStorage.getItem("activeOrgId");
-    const orgId = orgIdFromUrl || savedOrgId;
+    return orgIdFromUrl || savedOrgId;
+  };
 
+  const goKanban = () => {
+    const orgId = getActiveOrgId();
     navigate(orgId ? `/org/${orgId}/kanban` : "/kanban");
   };
 
-  // ✅ Kanban is active ONLY on /kanban or /org/:id/kanban
+  const goWorkItems = () => {
+    const orgId = getActiveOrgId();
+    navigate(orgId ? `/org/${orgId}/workitems` : "/workitems");
+  };
+
+  // ✅ active states
   const isKanbanActive =
     pathname === "/kanban" || /^\/org\/[^/]+\/kanban$/.test(pathname);
+
+  const isWorkItemsActive =
+    pathname === "/workitems" || /^\/org\/[^/]+\/workitems$/.test(pathname);
 
   const links = [
     { to: "/organisations", label: "Organisation", icon: <FiHome /> },
@@ -54,7 +65,7 @@ export default function Sidebar() {
           Organisation
         </Link>
 
-        {/* ✅ Kanban SECOND (org-aware redirect) */}
+        {/* ✅ Kanban */}
         <button
           type="button"
           onClick={goKanban}
@@ -64,6 +75,18 @@ export default function Sidebar() {
             <FiGrid />
           </span>
           Kanban Board
+        </button>
+
+        {/* ✅ WorkItems (NEW, org-aware) */}
+        <button
+          type="button"
+          onClick={goWorkItems}
+          className={`side-link ${isWorkItemsActive ? "active" : ""}`}
+        >
+          <span className="icon">
+            <FiGrid />
+          </span>
+          WorkItems
         </button>
 
         {/* ✅ Rest */}

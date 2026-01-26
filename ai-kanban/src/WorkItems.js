@@ -336,27 +336,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* TABS */}
-      <div className="top-tabs">
-      <button
-        onClick={() => navigate(isOrgMode ? `/org/${orgId}/kanban` : "/kanban")}
-        className="top-tab"
-      >
-        Kanban Board
-      </button>
 
-      <button className="top-tab active">Work Items</button>
-
-      {isOrgMode && (
-        <button
-          className="top-tab"
-          onClick={() => navigate("/organisations")}
-          style={{ marginLeft: "auto" }}
-        >
-          Organisations
-        </button>
-      )}
-    </div>
 
 
       {/* NAV */}

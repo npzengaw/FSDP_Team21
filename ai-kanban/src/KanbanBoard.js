@@ -312,13 +312,6 @@ const myTasks = useMemo(() => {
           {isOrgMode ? "Organisation Board" : "Personal Board"}
           </div>
           </div>
-
-          <div style={{ marginLeft: "auto", display: "flex", gap: "16px" }}>
-            <span style={{ cursor: "pointer", fontWeight: 600 }}>Kanban Board</span>
-            <span style={{ cursor: "pointer", color: "#666" }} onClick={() => navigate(isOrgMode ? `/org/${orgId}/workitems` : "/workitems")}>
-              WorkItems
-            </span>
-          </div>
         </div>
 
         <div className="board">
