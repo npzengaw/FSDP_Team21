@@ -4,7 +4,9 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import Lottie from "lottie-react";
-import boardAnim from "./assets/lottie/board.json"; // adjust path if needed
+import boardAnim from "./assets/lottie/board.json";
+import deleteAnim from "./assets/lottie/delete.json"; 
+
 
 
 function KanbanBoard({ socket, user, profile }) {
@@ -42,6 +44,11 @@ function KanbanBoard({ socket, user, profile }) {
 
   // Done popup
   const [selectedDoneTask, setSelectedDoneTask] = useState(null);
+
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
 
   // Organisation name
   const [orgName, setOrgName] = useState("");
@@ -88,6 +95,24 @@ const initial = String(displayName).trim().charAt(0).toUpperCase() || "U";
   fetchOrgName();
 }, [isOrgMode, orgId]);
 
+const formatDue = (dateStr) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+};
+
+const priorityLabel = (p) => {
+  const v = String(p || "").toLowerCase();
+  if (!v) return "—";
+  return v.charAt(0).toUpperCase() + v.slice(1);
+};
+
+const typeLabel = (t) => {
+  const v = String(t || "").toLowerCase();
+  if (!v) return "—";
+  return v.charAt(0).toUpperCase() + v.slice(1);
+};
 
   // ---------- LOAD AI MODELS (dropdown) ----------
   useEffect(() => {
@@ -274,19 +299,21 @@ const searchResults = useMemo(() => {
     if (error) console.error("Kanban move update error:", error);
   };
 
-  const deleteTask = async (taskId) => {
-    if (!window.confirm("Delete task?")) return;
+  const deleteTask = async () => {
+  if (!deleteTarget?.id) return;
 
-    // ✅ allow delete if owner OR assignee (if you want ONLY owner can delete, tell me)
-    const { error } = await supabase
-      .from("tasks")
-      .delete()
-      .eq("id", taskId)
-      .or(`user_id.eq.${uid},assigned_to.eq.${uid}`);
+  const { error } = await supabase
+    .from("tasks")
+    .delete()
+    .eq("id", deleteTarget.id)
+    .or(`user_id.eq.${uid},assigned_to.eq.${uid}`);
 
+  if (error) console.error("Kanban delete error:", error);
 
-    if (error) console.error("Kanban delete error:", error);
-  };
+  setShowDeleteModal(false);
+  setDeleteTarget(null);
+};
+
 
   // TODO: CLICK -> PROMPT POPUP
   const openPromptPopup = (task) => {
@@ -578,23 +605,38 @@ useEffect(() => {
                               }}
                             >
                               <button
-                                className="task-menu"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteTask(task.id);
-                                }}
-                              >
-                                ✕
-                              </button>
+  className="task-menu"
+  onClick={(e) => {
+    e.stopPropagation();
+    setDeleteTarget(task);
+    setShowDeleteModal(true);
+  }}
+>
+  ✕
+</button>
+
 
                               <div className="task-title" title={task.title}>
-                                {task.title}
-                              </div>
+  {task.title}
+</div>
 
+<div className="task-created-by">
+  Assigned by: {task.profiles?.username || profile?.username || "Unknown"}
+</div>
 
-                              <div className="task-created-by">
-                                Assigned by: {task.profiles?.username || profile?.username || "Unknown"}
-                              </div>
+{/* NEW: meta row */}
+<div className="task-meta">
+  <span className="meta-chip type">Type: {typeLabel(task.type)}</span>
+  <span className="meta-chip priority">Priority: {priorityLabel(task.priority)}</span>
+  <span className="meta-chip due">Due: {formatDue(task.end_date) || "—"}</span>
+  <span className="meta-chip assignee">
+    <span className="meta-chip assignee">
+  Assigned to: {task.assigned_to ? (task.assigned_to === uid ? "You" : task.assigned_to) : "—"}
+</span>
+
+  </span>
+</div>
+
 
                               {task.status === "todo" && (
                                 <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
@@ -735,6 +777,43 @@ useEffect(() => {
           </div>
         </div>
       )}
+      {/* DELETE CONFIRMATION MODAL */}
+      {showDeleteModal && deleteTarget && (
+  <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+    <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
+      {/* put your lottie delete anim here */}
+      <div className="delete-anim">
+        <Lottie animationData={deleteAnim} loop={false} autoplay />
+      </div>
+
+      <h2 className="delete-title">Delete task</h2>
+      <p className="delete-desc">
+        Are you sure you want to delete <strong>{deleteTarget.title}</strong>?
+        <br />
+        This action cannot be undone.
+      </p>
+
+      <div className="delete-actions">
+        <button
+          className="btn-cancel"
+          type="button"
+          onClick={() => {
+            setShowDeleteModal(false);
+            setDeleteTarget(null);
+          }}
+        >
+          Cancel
+        </button>
+
+        <button className="btn-danger" type="button" onClick={deleteTask}>
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
       
     </div>
   );

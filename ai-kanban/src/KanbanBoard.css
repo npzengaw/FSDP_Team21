@@ -420,6 +420,43 @@ body {
   margin-top: 2px;
   color: #666;
 }
+.task-meta{
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.meta-chip{
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15,23,42,0.10);
+  background: rgba(15,23,42,0.03);
+  color: #334155;
+  font-weight: 500;
+}
+
+.meta-chip.priority{
+  background: rgba(37,99,235,0.08);
+  border-color: rgba(37,99,235,0.18);
+}
+
+.meta-chip.type{
+  background: rgba(99,102,241,0.08);
+  border-color: rgba(99,102,241,0.18);
+}
+
+.meta-chip.due{
+  background: rgba(245,158,11,0.10);
+  border-color: rgba(245,158,11,0.22);
+}
+
+.meta-chip.assignee{
+  background: rgba(16,185,129,0.10);
+  border-color: rgba(16,185,129,0.22);
+}
+
 
 /* Not used in current KanbanBoard.js, but harmless if you re-add it later */
 .task-description {
@@ -433,6 +470,114 @@ body {
   display: inline-block;
   box-shadow: 0 1px 3px rgba(128, 96, 202, 0.18);
 }
+/* task meta chips */
+.task-meta{
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.meta-chip{
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+/* search empty state */
+.search-hint{
+  padding: 10px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.search-empty-state{
+  padding: 18px 10px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  gap: 8px;
+  color: #7c3aed; /* purple theme */
+}
+
+.empty-illus{
+  color: #7c3aed; /* makes svg purple */
+}
+
+.empty-title{
+  font-size: 16px;
+  font-weight: 500; /* NOT BOLD */
+  color: #0f172a;
+}
+
+.empty-subtitle{
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* delete modal (if you haven't added yet) */
+.delete-modal {
+  width: 420px;
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 28px 26px;
+  text-align: center;
+  box-shadow: 0 30px 80px rgba(2, 6, 23, 0.35);
+}
+
+.delete-anim {
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 12px auto;
+}
+
+.delete-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.delete-desc {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.delete-actions {
+  margin-top: 22px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.btn-cancel {
+  flex: 1;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.btn-danger {
+  flex: 1;
+  background: #ef4444;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+}
+
 
 /* ============================
    PROMPT POPUP (TODO -> Prompt AI)
