@@ -3,6 +3,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
+import Lottie from "lottie-react";
+import boardAnim from "./assets/lottie/board.json"; // adjust path if needed
 
 
 function KanbanBoard({ socket, user, profile }) {
@@ -35,6 +37,34 @@ function KanbanBoard({ socket, user, profile }) {
 
   // Done popup
   const [selectedDoneTask, setSelectedDoneTask] = useState(null);
+
+  // Organisation name
+  const [orgName, setOrgName] = useState("");
+
+
+  //Organisation Header for Board
+  useEffect(() => {
+  const fetchOrgName = async () => {
+    if (!isOrgMode || !orgId) return;
+
+    const { data, error } = await supabase
+      .from("organisations")   // <-- change if your table name differs
+      .select("name")          // <-- change if your column differs
+      .eq("id", orgId)
+      .single();
+
+    if (error) {
+      console.error("Fetch org name error:", error);
+      setOrgName("Company Projects");
+      return;
+    }
+
+    setOrgName(data?.name || "Company Projects");
+  };
+
+  fetchOrgName();
+}, [isOrgMode, orgId]);
+
 
   // ---------- LOAD AI MODELS (dropdown) ----------
   useEffect(() => {
@@ -306,13 +336,25 @@ const myTasks = useMemo(() => {
     <div className="kanban-container">
       <div className="main-content">
         {/* Header */}
-        <div className="header" style={{ display: "flex", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <div className="welcome">
-          {isOrgMode ? "Organisation Board" : "Personal Board"}
-          </div>
-          </div>
-        </div>
+        <div className="header">
+  <div className="header-title">
+    <span className="page-title">
+      {isOrgMode
+        ? `${orgName || "Company Projects"} Board`
+        : "Personal Board"}
+    </span>
+
+    <span className="page-icon">
+      <Lottie
+        animationData={boardAnim}
+        loop
+        autoplay
+      />
+    </span>
+  </div>
+</div>
+
+
 
         <div className="board">
           <DragDropContext onDragEnd={onDragEnd}>
