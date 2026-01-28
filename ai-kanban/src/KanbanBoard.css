@@ -2233,6 +2233,132 @@ body {
   box-shadow: 0 0 0 6px rgba(106, 61, 240, 0.14),
               0 16px 40px rgba(106, 61, 240, 0.14) !important;
 }
+/* =========================
+   DONE / AI OUTPUT MODAL — match Prompt AI styling
+   Paste at VERY BOTTOM of KanbanBoard.css
+========================= */
+
+:root{
+  --ai-purple: #6a3df0;
+}
+
+/* overlay similar to Prompt AI */
+.modal-overlay{
+  background: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(9px) !important;
+}
+
+/* modal card base */
+.modal-card{
+  position: relative !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  box-shadow: 0 30px 90px rgba(2, 6, 23, 0.22) !important;
+  overflow: hidden !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.92)) !important;
+}
+
+/* flowing “AI” background inside modal */
+.modal-card::before{
+  content: "";
+  position: absolute;
+  inset: -160px;
+  pointer-events: none;
+  opacity: 0.55;
+  background:
+    radial-gradient(520px 360px at 20% 18%, rgba(106, 61, 240, 0.14), transparent 60%),
+    radial-gradient(520px 360px at 85% 28%, rgba(99, 102, 241, 0.12), transparent 62%),
+    radial-gradient(600px 420px at 55% 88%, rgba(168, 85, 247, 0.10), transparent 65%),
+    radial-gradient(520px 360px at 50% 45%, rgba(15, 23, 42, 0.035), transparent 70%);
+  filter: blur(22px);
+  animation: ai-flow 18s ease-in-out infinite alternate;
+}
+
+/* keep content above bg */
+.modal-card > *{
+  position: relative;
+  z-index: 1;
+}
+
+/* header polish */
+.modal-header{
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: transparent !important;
+}
+
+.modal-title{
+  font-weight: 700 !important;
+  letter-spacing: -0.2px;
+}
+
+/* agent line: softer + consistent */
+.modal-subtitle{
+  color: #64748b !important;
+}
+.modal-subtitle span{
+  color: #0f172a !important;
+  font-weight: 600 !important;
+}
+
+/* close button like prompt (simple, clean) */
+.modal-close{
+  border: none !important;
+  background: transparent !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 4px !important;
+  border-radius: 0 !important;
+  color: #64748b !important;
+  font-size: 26px !important;
+  line-height: 1 !important;
+}
+.modal-close:hover{
+  color: #0f172a !important;
+}
+
+/* section label */
+.section-label{
+  color: #475569 !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.02em;
+}
+
+/* AI output box = same “glowy input” style */
+.output-box{
+  border-radius: 18px !important;
+  padding: 16px !important;
+  border: 1px solid rgba(106, 61, 240, 0.45) !important;
+  background: rgba(255,255,255,0.92) !important;
+  box-shadow: 0 14px 34px rgba(106, 61, 240, 0.10) !important;
+  color: #0f172a !important;
+}
+
+/* footer background */
+.modal-footer{
+  background: transparent !important;
+  border-top: 1px solid rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Reset button = purple theme, less bold */
+.btn-primary{
+  background: linear-gradient(180deg, var(--ai-purple) 0%, #5430d8 100%) !important;
+  border: none !important;
+  border-radius: 14px !important;
+  padding: 12px 16px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 12px 26px rgba(106, 61, 240, 0.25) !important;
+}
+.btn-primary:hover{
+  filter: brightness(0.97) !important;
+}
+
+/* same animation used in Prompt AI */
+@keyframes ai-flow {
+  0%   { transform: translate(-10px, -6px) scale(1); }
+  50%  { transform: translate(18px, 12px) scale(1.03); }
+  100% { transform: translate(-6px, 16px) scale(1.02); }
+}
+
 
 
 
