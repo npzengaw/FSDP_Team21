@@ -1,5 +1,5 @@
 import "./KanbanBoard.css";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
@@ -25,6 +25,11 @@ function KanbanBoard({ socket, user, profile }) {
   const [tasks, setTasks] = useState([]);
   const [columns, setColumns] = useState({ todo: [], progress: [], done: [] });
 
+  // Header task search (global)
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const taskRefs = useRef({});
+
   // Popup: prompt AI from TODO/backlog
   const [showPromptPopup, setShowPromptPopup] = useState(false);
   const [selectedBacklogTask, setSelectedBacklogTask] = useState(null);
@@ -40,6 +45,24 @@ function KanbanBoard({ socket, user, profile }) {
 
   // Organisation name
   const [orgName, setOrgName] = useState("");
+
+  //Profile icon
+
+const todayLabel = useMemo(() => {
+  return new Date().toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}, []);
+
+const displayName =
+  profile?.username ||
+  user?.user_metadata?.full_name ||
+  user?.email ||
+  "User";
+
+const initial = String(displayName).trim().charAt(0).toUpperCase() || "U";
 
 
   //Organisation Header for Board
@@ -176,16 +199,43 @@ const myTasks = useMemo(() => {
   if (!uid) return [];
   return tasks.filter((t) => t.user_id === uid || t.assigned_to === uid);
 }, [tasks, uid]);  
+const filteredTasks = useMemo(() => {
+  const q = String(searchTerm || "").trim().toLowerCase();
+  if (!q) return myTasks;
+
+  return (myTasks || []).filter((t) => {
+    const title = String(t.title || "").toLowerCase();
+    const desc = String(t.description || "").toLowerCase();
+    return title.includes(q) || desc.includes(q);
+  });
+}, [myTasks, searchTerm]);
+
+
+const searchResults = useMemo(() => {
+  const q = String(searchTerm || "").trim().toLowerCase();
+  if (!q) return [];
+
+  return (myTasks || [])
+    .filter((t) => {
+      const title = String(t.title || "").toLowerCase();
+      const desc = String(t.description || "").toLowerCase();
+      return title.includes(q) || desc.includes(q);
+    })
+    .slice(0, 8);
+}, [myTasks, searchTerm]);
+
+
 
   // Build columns
-  useEffect(() => {
-    const safe = Array.isArray(myTasks) ? myTasks : [];
-    setColumns({
-      todo: safe.filter((t) => t.status === "todo"),
-      progress: safe.filter((t) => t.status === "progress"),
-      done: safe.filter((t) => t.status === "done"),
-    });
-  }, [myTasks]);
+ useEffect(() => {
+  const safe = Array.isArray(filteredTasks) ? filteredTasks : [];
+  setColumns({
+    todo: safe.filter((t) => t.status === "todo"),
+    progress: safe.filter((t) => t.status === "progress"),
+    done: safe.filter((t) => t.status === "done"),
+  });
+}, [filteredTasks]);
+
 
   // DRAG & DROP (manual)
   const onDragEnd = async (result) => {
@@ -331,28 +381,161 @@ const myTasks = useMemo(() => {
     const updated = tasks.find((t) => t.id === selectedDoneTask.id);
     if (updated) setSelectedDoneTask(updated);
   }, [tasks, selectedDoneTask]);
+  const jumpToTask = (taskId) => {
+  const el = taskRefs.current[taskId];
+  if (!el) return;
+
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  el.classList.add("task-flash");
+  setTimeout(() => el.classList.remove("task-flash"), 900);
+
+  setSearchOpen(false);
+  setSearchTerm(""); // ✅ add this line
+};
+
+useEffect(() => {
+  if (!searchOpen) return;
+
+  const onDocClick = () => setSearchOpen(false);
+  document.addEventListener("click", onDocClick);
+
+  return () => document.removeEventListener("click", onDocClick);
+}, [searchOpen]);
+
+
 
   return (
     <div className="kanban-container">
       <div className="main-content">
         {/* Header */}
         <div className="header">
-  <div className="header-title">
-    <span className="page-title">
-      {isOrgMode
-        ? `${orgName || "Company Projects"} Board`
-        : "Personal Board"}
-    </span>
+  <div className="header-left">
+    <div className="header-title">
+      <span className="page-title">
+        {isOrgMode ? `${orgName || "Company Projects"} Board` : "Personal Board"}
+      </span>
 
-    <span className="page-icon">
-      <Lottie
-        animationData={boardAnim}
-        loop
-        autoplay
-      />
+      <span className="page-icon">
+        <Lottie animationData={boardAnim} loop autoplay />
+      </span>
+    </div>
+  </div>
+
+  <div className="header-right">
+  {/* Search icon button */}
+  <div className="header-action" onClick={(e) => e.stopPropagation()}>
+    <button
+      type="button"
+      className="icon-btn"
+      aria-label="Search tasks"
+      onClick={() => setSearchOpen((v) => !v)}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M21 21l-4.3-4.3m1.8-5.2a7 7 0 11-14 0 7 7 0 0114 0z"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+      </svg>
+    </button>
+
+    {/* Popover search (only when clicked) */}
+    {searchOpen && (
+      <div className="search-popover" onClick={(e) => e.stopPropagation()}>
+        <div className="search-popover-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M21 21l-4.3-4.3m1.8-5.2a7 7 0 11-14 0 7 7 0 0114 0z"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+
+          <input
+            autoFocus
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search tasks"
+            aria-label="Search tasks"
+          />
+
+          <button
+            type="button"
+            className="icon-btn subtle"
+            aria-label="Close search"
+            onClick={() => {
+              setSearchOpen(false);
+              setSearchTerm("");
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="search-popover-body">
+          <div className="search-popover-body">
+  {!searchTerm.trim() ? (
+    <div className="search-hint">Type to search by task title or description…</div>
+  ) : searchResults.length === 0 ? (
+    <div className="search-empty-state">
+      <div className="empty-illus" aria-hidden="true">
+        {/* simple inline SVG illustration */}
+        <svg viewBox="0 0 120 120" width="92" height="92" fill="none">
+          <circle cx="58" cy="58" r="34" stroke="currentColor" strokeWidth="5" opacity="0.35" />
+          <path
+            d="M83 83l20 20"
+            stroke="currentColor"
+            strokeWidth="6"
+            strokeLinecap="round"
+            opacity="0.35"
+          />
+          <circle cx="30" cy="28" r="4" fill="currentColor" opacity="0.18" />
+          <circle cx="96" cy="36" r="6" fill="currentColor" opacity="0.12" />
+          <circle cx="20" cy="76" r="6" fill="currentColor" opacity="0.10" />
+        </svg>
+      </div>
+
+      <div className="empty-title">No Result Found</div>
+      <div className="empty-subtitle">No results found. Please try again.</div>
+    </div>
+  ) : (
+    <div className="search-results">
+      
+    </div>
+  )}
+</div>
+
+        </div>
+      </div>
+    )}
+  </div>
+
+  {/* Date (icon + text, same sizing) */}
+  <div className="header-action">
+    <span className="icon-inline" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M7 3v2m10-2v2M4 8h16M6 5h12a2 2 0 012 2v13a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+      </svg>
     </span>
+    <span className="date-text">{todayLabel}</span>
+  </div>
+
+  {/* Avatar */}
+  <div className="avatar-circle" title={displayName}>
+    {initial}
   </div>
 </div>
+
+</div>
+
 
 
 
@@ -378,7 +561,11 @@ const myTasks = useMemo(() => {
                           {(provided) => (
                             <div
                               className="task-card"
-                              ref={provided.innerRef}
+                              ref={(el) => {
+  provided.innerRef(el);
+  taskRefs.current[task.id] = el;
+}}
+
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
                               onClick={() => {
@@ -548,6 +735,7 @@ const myTasks = useMemo(() => {
           </div>
         </div>
       )}
+      
     </div>
   );
 }
