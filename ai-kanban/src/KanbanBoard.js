@@ -247,7 +247,7 @@ function KanbanBoard({ socket, user, profile }) {
     }
 
     // enqueue on server with model
-    socket.emit("generateFromWorkItem", {
+    socket.emit("aiPrompt", {
       taskId,
       prompt: cleanPrompt,
       model: modelToUse,

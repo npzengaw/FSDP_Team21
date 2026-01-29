@@ -1,156 +1,215 @@
 // src/organisation.js
 import { supabase } from "./supabaseClient";
 
-/**
- * Assumed tables (edit to match your schema):
- * - organisations: { id, name, created_by, created_at }
- * - organisation_members: { id, organisation_id, user_id, role, created_at }
- *
- * If your table/column names differ, change them here.
- */
+/* =========================
+   helpers
+========================= */
+function makePin(len = 6) {
+  let s = "";
+  for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 10);
+  return s;
+}
 
+function normName(s) {
+  return (s || "").trim();
+}
+
+/* =========================
+   GET: my organisations
+   - SAFE (no embeds)
+========================= */
 export async function getMyOrganisations(userId) {
-  if (!userId) return [];
+  try {
+    // 1) orgs I own
+    const ownedRes = await supabase
+      .from("organisations")
+      .select("*")
+      .eq("owner_id", userId);
 
-  // Organisations where user is a member
-  const { data: memberRows, error: memErr } = await supabase
-    .from("organisation_members")
-    .select("organisation_id")
-    .eq("user_id", userId);
+    if (ownedRes.error) throw ownedRes.error;
 
-  if (memErr) throw memErr;
+    // 2) orgs I'm a member of
+    const memRes = await supabase
+      .from("organisation_members")
+      .select("organisation_id")
+      .eq("user_id", userId);
 
-  const orgIds = (memberRows || []).map((r) => r.organisation_id).filter(Boolean);
-  if (orgIds.length === 0) return [];
+    if (memRes.error) throw memRes.error;
 
-  const { data: orgs, error: orgErr } = await supabase
-    .from("organisations")
-    .select("*")
-    .in("id", orgIds)
-    .order("created_at", { ascending: false });
+    const memberOrgIds = (memRes.data || []).map((r) => r.organisation_id);
 
-  if (orgErr) throw orgErr;
-  return orgs || [];
+    let memberOrgs = [];
+    if (memberOrgIds.length > 0) {
+      const orgRes = await supabase
+        .from("organisations")
+        .select("*")
+        .in("id", memberOrgIds);
+
+      if (orgRes.error) throw orgRes.error;
+      memberOrgs = orgRes.data || [];
+    }
+
+    // 3) merge + dedupe
+    const map = new Map();
+    for (const o of [...(ownedRes.data || []), ...memberOrgs]) {
+      map.set(o.id, o);
+    }
+
+    const merged = Array.from(map.values()).sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "")
+    );
+
+    return { data: merged, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
 
-export async function getMembers(organisationId) {
-  if (!organisationId) return [];
+/* =========================
+   GET: members of an org
+========================= */
+export async function getMembers(orgId) {
+  try {
+    const res = await supabase
+      .from("organisation_members")
+      .select("user_id, role, profiles:profiles(id, username)")
+      .eq("organisation_id", orgId);
 
-  // Join members -> profiles (assuming profiles.id = user_id)
-  const { data, error } = await supabase
-    .from("organisation_members")
-    .select(
-      `
-      id,
-      role,
-      created_at,
-      user_id,
-      profiles:profiles (
-        id,
-        username,
-        full_name,
-        avatar_url,
-        email
-      )
-    `
-    )
-    .eq("organisation_id", organisationId)
-    .order("created_at", { ascending: true });
+    if (res.error) throw res.error;
 
-  if (error) throw error;
-  return data || [];
+    const cleaned = (res.data || []).map((r) => ({
+      user_id: r.user_id,
+      role: r.role,
+      username: r.profiles?.username || "",
+    }));
+
+    return { data: cleaned, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
 
-export async function createOrganisation({ name, userId }) {
-  if (!name?.trim()) throw new Error("Organisation name is required");
-  if (!userId) throw new Error("User not logged in");
+/* =========================
+   CREATE org
+   IMPORTANT: your organisation_members table has owner_id (NOT NULL)
+========================= */
+export async function createOrganisation(name, ownerId) {
+  try {
+    const orgName = normName(name);
+    if (!orgName) throw new Error("Workspace name is required.");
 
-  // 1) create org
-  const { data: org, error: orgErr } = await supabase
-    .from("organisations")
-    .insert([{ name: name.trim(), created_by: userId }])
-    .select("*")
-    .single();
+    const pin = makePin(6);
 
-  if (orgErr) throw orgErr;
+    const orgRes = await supabase
+      .from("organisations")
+      .insert([{ name: orgName, owner_id: ownerId, pin }])
+      .select("*")
+      .single();
 
-  // 2) add creator as admin
-  const { error: memErr } = await supabase.from("organisation_members").insert([
-    {
-      organisation_id: org.id,
-      user_id: userId,
-      role: "admin",
-    },
-  ]);
+    if (orgRes.error) throw orgRes.error;
 
-  if (memErr) throw memErr;
+    // ✅ insert membership with owner_id filled
+    const memRes = await supabase.from("organisation_members").insert([
+      {
+        organisation_id: orgRes.data.id,
+        user_id: ownerId,
+        owner_id: ownerId,
+        role: "owner",
+      },
+    ]);
 
-  return org;
+    if (memRes.error) throw memRes.error;
+
+    return { data: orgRes.data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
 
-export async function joinOrganisation({ organisationId, userId }) {
-  if (!organisationId) throw new Error("Organisation ID is required");
-  if (!userId) throw new Error("User not logged in");
+/* =========================
+   JOIN org by (name + pin)
+   IMPORTANT: owner_id NOT NULL in organisation_members
+========================= */
+export async function joinOrganisation(name, pin, userId) {
+  try {
+    const orgName = normName(name);
+    const orgPin = normName(pin);
 
-  // avoid duplicates
-  const { data: existing, error: exErr } = await supabase
-    .from("organisation_members")
-    .select("id")
-    .eq("organisation_id", organisationId)
-    .eq("user_id", userId)
-    .maybeSingle();
+    if (!orgName || !orgPin) throw new Error("Workspace name and PIN are required.");
 
-  if (exErr) throw exErr;
-  if (existing?.id) return { joined: false, reason: "already_member" };
+    const orgRes = await supabase
+      .from("organisations")
+      .select("*")
+      .eq("name", orgName)
+      .eq("pin", orgPin)
+      .single();
 
-  const { error } = await supabase.from("organisation_members").insert([
-    { organisation_id: organisationId, user_id: userId, role: "member" },
-  ]);
+    if (orgRes.error) throw orgRes.error;
 
-  if (error) throw error;
-  return { joined: true };
+    const memRes = await supabase.from("organisation_members").insert([
+      {
+        organisation_id: orgRes.data.id,
+        user_id: userId,
+        owner_id: orgRes.data.owner_id, // ✅ required
+        role: "developer", // keep your existing roles style
+      },
+    ]);
+
+    if (memRes.error) throw memRes.error;
+
+    return { data: orgRes.data, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
 
-export async function leaveOrganisation({ organisationId, userId }) {
-  if (!organisationId) throw new Error("Organisation ID is required");
-  if (!userId) throw new Error("User not logged in");
+/* =========================
+   LEAVE org
+========================= */
+export async function leaveOrganisation(orgId, userId) {
+  try {
+    const res = await supabase
+      .from("organisation_members")
+      .delete()
+      .eq("organisation_id", orgId)
+      .eq("user_id", userId);
 
-  const { error } = await supabase
-    .from("organisation_members")
-    .delete()
-    .eq("organisation_id", organisationId)
-    .eq("user_id", userId);
+    if (res.error) throw res.error;
 
-  if (error) throw error;
-  return { left: true };
+    return { data: true, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
 
-export async function deleteOrganisation({ organisationId }) {
-  if (!organisationId) throw new Error("Organisation ID is required");
+/* =========================
+   DELETE org (owner only)
+========================= */
+export async function deleteOrganisation(orgId, userId) {
+  try {
+    const orgRes = await supabase
+      .from("organisations")
+      .select("id, owner_id")
+      .eq("id", orgId)
+      .single();
 
-  // delete members first (if you don't have ON DELETE CASCADE)
-  const { error: memErr } = await supabase
-    .from("organisation_members")
-    .delete()
-    .eq("organisation_id", organisationId);
+    if (orgRes.error) throw orgRes.error;
+    if (orgRes.data.owner_id !== userId) {
+      throw new Error("Only the owner can delete this workspace.");
+    }
 
-  if (memErr) throw memErr;
+    const memDel = await supabase
+      .from("organisation_members")
+      .delete()
+      .eq("organisation_id", orgId);
 
-  const { error: orgErr } = await supabase
-    .from("organisations")
-    .delete()
-    .eq("id", organisationId);
+    if (memDel.error) throw memDel.error;
 
-  if (orgErr) throw orgErr;
-  return { deleted: true };
+    const orgDel = await supabase.from("organisations").delete().eq("id", orgId);
+    if (orgDel.error) throw orgDel.error;
+
+    return { data: true, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
-
-// Keep default export too (so old imports won't break)
-export default {
-  getMyOrganisations,
-  getMembers,
-  createOrganisation,
-  joinOrganisation,
-  leaveOrganisation,
-  deleteOrganisation,
-};

@@ -63,6 +63,8 @@ export default function OrganisationDashboard({ user, profile }) {
   });
 
   const loadData = async () => {
+    console.log("LOGGED IN USER ID:", user?.id);
+
     setPageError("");
     setLoading(true);
 
