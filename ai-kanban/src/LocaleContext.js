@@ -1,5 +1,5 @@
 // src/LocaleContext.js
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { translate } from "./i18n";
 
 const LocaleContext = createContext(null);
@@ -14,18 +14,32 @@ export function LocaleProvider({ profile, children }) {
     return profile?.timezone || localStorage.getItem("kiro_timezone") || "Asia/Singapore";
   });
 
-  // Sync from profile when it changes (handles profile updates from other components)
+  // ✅ Track last applied profile values so we don't overwrite user's manual changes
+  const lastProfileLocaleRef = useRef(profile?.locale ?? null);
+  const lastProfileTimezoneRef = useRef(profile?.timezone ?? null);
+
+  // ✅ Sync ONLY when profile values actually change (not when user changes locale/timezone)
   useEffect(() => {
     if (!profile) return;
-    
-    // Only update if profile has values and they differ from current state
-    if (profile.locale && profile.locale !== locale) {
+
+    // Only apply if profile.locale truly changed since last time we applied it
+    if (
+      profile.locale &&
+      profile.locale !== lastProfileLocaleRef.current
+    ) {
+      lastProfileLocaleRef.current = profile.locale;
       setLocale(profile.locale);
     }
-    if (profile.timezone && profile.timezone !== timezone) {
+
+    // Only apply if profile.timezone truly changed since last time we applied it
+    if (
+      profile.timezone &&
+      profile.timezone !== lastProfileTimezoneRef.current
+    ) {
+      lastProfileTimezoneRef.current = profile.timezone;
       setTimezone(profile.timezone);
     }
-  }, [profile, locale, timezone]);
+  }, [profile]);
 
   // Persist locale changes to localStorage and update document language
   useEffect(() => {
@@ -40,15 +54,14 @@ export function LocaleProvider({ profile, children }) {
 
   // Memoize context value to prevent unnecessary re-renders
   const value = useMemo(() => {
-    // Translation function
     const t = (key) => translate(locale, key);
-    
+
     return {
       locale,
       setLocale,
       timezone,
       setTimezone,
-      t, // ✅ Translation function available to all consumers
+      t,
     };
   }, [locale, timezone]);
 

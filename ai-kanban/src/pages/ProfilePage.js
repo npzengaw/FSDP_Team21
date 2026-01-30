@@ -46,10 +46,30 @@ function isImageFile(file) {
   return !!file && file.type?.startsWith("image/");
 }
 
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // fallback
+    try {
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 /* =========================
    toast notification
 ========================= */
-function Toast({ toast, onClose }) {
+function Toast({ toast, onClose, reduceMotion }) {
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(onClose, 3800);
@@ -60,88 +80,32 @@ function Toast({ toast, onClose }) {
 
   const tone = toast.tone || "neutral";
   const toneMap = {
-    neutral: { bg: "rgba(255,255,255,0.96)", border: "rgba(255,255,255,0.3)", accent: "#64748b" },
-    success: { bg: "rgba(16,185,129,0.95)", border: "rgba(255,255,255,0.25)", accent: "#059669" },
-    danger: { bg: "rgba(239,68,68,0.95)", border: "rgba(255,255,255,0.25)", accent: "#dc2626" },
-    info: { bg: "rgba(59,130,246,0.95)", border: "rgba(255,255,255,0.25)", accent: "#2563eb" },
-    warning: { bg: "rgba(245,158,11,0.95)", border: "rgba(255,255,255,0.25)", accent: "#d97706" },
+    neutral: { bg: "rgba(255,255,255,0.96)", border: "rgba(15,23,42,0.08)", text: "#0f172a" },
+    success: { bg: "rgba(16,185,129,0.95)", border: "rgba(255,255,255,0.25)", text: "#fff" },
+    danger: { bg: "rgba(239,68,68,0.95)", border: "rgba(255,255,255,0.25)", text: "#fff" },
+    info: { bg: "rgba(106,61,240,0.95)", border: "rgba(255,255,255,0.25)", text: "#fff" }, // purple hint
+    warning: { bg: "rgba(245,158,11,0.95)", border: "rgba(255,255,255,0.25)", text: "#fff" },
   };
 
   const config = toneMap[tone] || toneMap.neutral;
 
   return (
     <div
+      className={`_toast ${reduceMotion ? "_rm" : ""}`}
       style={{
-        position: "fixed",
-        right: 24,
-        bottom: 24,
-        zIndex: 9999,
-        width: "min(420px, calc(100vw - 48px))",
-        padding: "16px 18px",
-        borderRadius: 12,
         background: config.bg,
         border: `1px solid ${config.border}`,
-        boxShadow: "0 24px 64px rgba(0,0,0,0.40), 0 0 0 1px rgba(0,0,0,0.08)",
-        backdropFilter: "blur(16px)",
-        display: "flex",
-        gap: 14,
-        alignItems: "flex-start",
-        color: tone === "neutral" ? "#1e293b" : "#fff",
-        fontFamily: '"DM Sans", -apple-system, sans-serif',
-        animation: "toastSlide 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+        color: config.text,
       }}
       role="status"
       aria-live="polite"
     >
-      <style>{`
-        @keyframes toastSlide {
-          from { transform: translateX(120%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      `}</style>
-
-      <div style={{ fontSize: 20, lineHeight: "20px" }}>{toast.icon || "ℹ️"}</div>
+      <div className="_toastIcon">{toast.icon || "ℹ️"}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 14.5, letterSpacing: "-0.01em", marginBottom: 4 }}>
-          {toast.title || "Notification"}
-        </div>
-        {toast.message && (
-          <div
-            style={{
-              opacity: 0.92,
-              fontSize: 13.5,
-              lineHeight: 1.45,
-              fontWeight: 500,
-              wordBreak: "break-word",
-            }}
-          >
-            {toast.message}
-          </div>
-        )}
+        <div className="_toastTitle">{toast.title || "Notification"}</div>
+        {toast.message && <div className="_toastMsg">{toast.message}</div>}
       </div>
-      <button
-        onClick={onClose}
-        style={{
-          border: "none",
-          background: "transparent",
-          cursor: "pointer",
-          fontWeight: 700,
-          color: tone === "neutral" ? "rgba(30,41,59,0.5)" : "rgba(255,255,255,0.7)",
-          padding: 6,
-          margin: -6,
-          borderRadius: 8,
-          fontSize: 16,
-          lineHeight: "16px",
-          transition: "all 0.2s ease",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = tone === "neutral" ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.15)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "transparent";
-        }}
-        aria-label="Close notification"
-      >
+      <button className="_iconBtn _toastClose" onClick={onClose} aria-label="Close notification">
         ✕
       </button>
     </div>
@@ -151,114 +115,25 @@ function Toast({ toast, onClose }) {
 /* =========================
    modal
 ========================= */
-function Modal({ open, title, subtitle, children, footer, onClose, danger }) {
+function Modal({ open, title, subtitle, children, footer, onClose, danger, reduceMotion }) {
   if (!open) return null;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9000,
-        background: "rgba(0,0,0,0.75)",
-        backdropFilter: "blur(8px)",
-        display: "grid",
-        placeItems: "center",
-        padding: 20,
-        animation: "fadeIn 0.25s ease",
-      }}
-      onMouseDown={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title || "Modal"}
-    >
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes modalSlide {
-          from { transform: scale(0.92) translateY(20px); opacity: 0; }
-          to { transform: scale(1) translateY(0); opacity: 1; }
-        }
-      `}</style>
-
-      <div
-        onMouseDown={(e) => e.stopPropagation()}
-        style={{
-          width: "min(560px, 100%)",
-          borderRadius: 16,
-          background: "#fff",
-          border: "1px solid rgba(226,232,240,0.6)",
-          boxShadow: "0 32px 96px rgba(0,0,0,0.35)",
-          overflow: "hidden",
-          animation: "modalSlide 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
-        }}
-      >
-        <div
-          style={{
-            padding: "20px 24px",
-            borderBottom: "1px solid rgba(226,232,240,0.8)",
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 16,
-            background: danger ? "linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%)" : "linear-gradient(135deg, #f8fafc 0%, #fff 100%)",
-          }}
-        >
+    <div className={`_modalBackdrop ${reduceMotion ? "_rm" : ""}`} onMouseDown={onClose} role="dialog" aria-modal="true">
+      <div className="_modal" onMouseDown={(e) => e.stopPropagation()}>
+        <div className={`_modalHeader ${danger ? "_danger" : ""}`}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 17, color: danger ? "#991b1b" : "#0f172a", letterSpacing: "-0.02em" }}>
-              {title}
-            </div>
-            {subtitle && (
-              <div style={{ fontSize: 13.5, fontWeight: 500, color: danger ? "#dc2626" : "#64748b", marginTop: 4 }}>
-                {subtitle}
-              </div>
-            )}
+            <div className="_modalTitle">{title}</div>
+            {subtitle && <div className="_modalSub">{subtitle}</div>}
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              border: "none",
-              background: "transparent",
-              cursor: "pointer",
-              fontWeight: 700,
-              color: "#64748b",
-              padding: 8,
-              margin: -8,
-              borderRadius: 8,
-              fontSize: 16,
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(0,0,0,0.06)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
-            aria-label="Close modal"
-          >
+          <button className="_iconBtn _modalClose" onClick={onClose} aria-label="Close modal">
             ✕
           </button>
         </div>
 
-        <div style={{ padding: 24 }}>{children}</div>
+        <div className="_modalBody">{children}</div>
 
-        {footer && (
-          <div
-            style={{
-              padding: "16px 24px",
-              borderTop: "1px solid rgba(226,232,240,0.8)",
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 12,
-              flexWrap: "wrap",
-              background: "#f8fafc",
-            }}
-          >
-            {footer}
-          </div>
-        )}
+        {footer && <div className="_modalFooter">{footer}</div>}
       </div>
     </div>
   );
@@ -268,116 +143,33 @@ function Modal({ open, title, subtitle, children, footer, onClose, danger }) {
    UI Components
 ========================= */
 function Badge({ children, variant = "default" }) {
-  const variants = {
-    default: {
-      bg: "linear-gradient(135deg, #e2e8f0 0%, #f1f5f9 100%)",
-      color: "#475569",
-      border: "1px solid rgba(148,163,184,0.3)",
-    },
-    primary: {
-      bg: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-      color: "#fff",
-      border: "1px solid rgba(255,255,255,0.2)",
-    },
-    success: {
-      bg: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-      color: "#fff",
-      border: "1px solid rgba(255,255,255,0.2)",
-    },
-    danger: {
-      bg: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-      color: "#fff",
-      border: "1px solid rgba(255,255,255,0.2)",
-    },
-    warning: {
-      bg: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-      color: "#fff",
-      border: "1px solid rgba(255,255,255,0.2)",
-    },
-  };
+  return <span className={`_badge _b_${variant}`}>{children}</span>;
+}
 
-  const style = variants[variant] || variants.default;
-
+function Button({ children, variant = "ghost", disabled, onClick, type = "button" }) {
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "6px 12px",
-        borderRadius: 999,
-        fontSize: 11.5,
-        fontWeight: 700,
-        textTransform: "uppercase",
-        letterSpacing: "0.05em",
-        whiteSpace: "nowrap",
-        background: style.bg,
-        color: style.color,
-        border: style.border,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-      }}
-    >
+    <button type={type} className={`_btn _v_${variant}`} disabled={disabled} onClick={onClick}>
       {children}
-    </span>
+    </button>
   );
 }
 
 function Switch({ checked, onChange, label, description, disabled }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: 16,
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        padding: "14px 0",
-        borderBottom: "1px solid rgba(226,232,240,0.6)",
-      }}
-    >
+    <div className="_switchRow">
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontWeight: 600, fontSize: 14, color: "#1e293b", letterSpacing: "-0.01em" }}>{label}</div>
-        {description && (
-          <div style={{ fontWeight: 500, fontSize: 13, color: "#64748b", marginTop: 4, lineHeight: 1.4 }}>
-            {description}
-          </div>
-        )}
+        <div className="_switchLabel">{label}</div>
+        {description && <div className="_switchDesc">{description}</div>}
       </div>
 
       <button
         type="button"
+        className={`_switch ${checked ? "_on" : ""}`}
         onClick={() => !disabled && onChange(!checked)}
         disabled={disabled}
         aria-pressed={checked}
-        style={{
-          width: 48,
-          height: 28,
-          borderRadius: 999,
-          border: "1px solid rgba(203,213,225,0.8)",
-          background: checked
-            ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)"
-            : "linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)",
-          position: "relative",
-          cursor: disabled ? "not-allowed" : "pointer",
-          flex: "0 0 auto",
-          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-          boxShadow: checked ? "0 4px 14px rgba(59,130,246,0.35)" : "0 2px 8px rgba(0,0,0,0.08)",
-          opacity: disabled ? 0.5 : 1,
-        }}
       >
-        <span
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            top: 3,
-            left: checked ? 24 : 3,
-            width: 22,
-            height: 22,
-            borderRadius: 999,
-            background: "#fff",
-            boxShadow: "0 3px 12px rgba(0,0,0,0.18)",
-            transition: "left 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-          }}
-        />
+        <span className="_switchKnob" />
       </button>
     </div>
   );
@@ -385,50 +177,26 @@ function Switch({ checked, onChange, label, description, disabled }) {
 
 function Card({ title, subtitle, children, actions, variant = "default" }) {
   return (
-    <section
-      style={{
-        borderRadius: 16,
-        border: "1px solid rgba(226,232,240,0.8)",
-        background: "#fff",
-        boxShadow: "0 4px 20px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.02)",
-        overflow: "hidden",
-      }}
-      aria-label={title}
-    >
-      <div
-        style={{
-          padding: "18px 24px",
-          borderBottom: "1px solid rgba(226,232,240,0.8)",
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 16,
-          background: variant === "danger"
-            ? "linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%)"
-            : "linear-gradient(135deg, #f8fafc 0%, #fff 100%)",
-        }}
-      >
+    <section className="_card" aria-label={title}>
+      <div className={`_cardHeader ${variant === "danger" ? "_danger" : ""}`}>
         <div>
-          <div
-            style={{
-              fontWeight: 700,
-              fontSize: 16,
-              color: variant === "danger" ? "#991b1b" : "#0f172a",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            {title}
-          </div>
-          {subtitle && (
-            <div style={{ fontSize: 13.5, fontWeight: 500, color: variant === "danger" ? "#dc2626" : "#64748b", marginTop: 4 }}>
-              {subtitle}
-            </div>
-          )}
+          <div className="_cardTitle">{title}</div>
+          {subtitle && <div className="_cardSub">{subtitle}</div>}
         </div>
         {actions}
       </div>
-      <div style={{ padding: 24 }}>{children}</div>
+      <div className="_cardBody">{children}</div>
     </section>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="_skCard">
+      <div className="_skLine _w60" />
+      <div className="_skLine _w90" />
+      <div className="_skLine _w70" />
+    </div>
   );
 }
 
@@ -437,7 +205,7 @@ function Card({ title, subtitle, children, actions, variant = "default" }) {
 ========================= */
 export default function ProfilePage({ user, profile, onProfileUpdated }) {
   const navigate = useNavigate();
-  const { locale, setLocale, timezone, setTimezone, t } = useLocale();
+  const { locale, setLocale, timezone, setTimezone } = useLocale();
 
   const [tab, setTab] = useState("profile");
   const [toast, setToast] = useState(null);
@@ -482,10 +250,15 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
       try {
         setLoading(true);
 
+        if (!user?.id) {
+          setPageError("No user session found. Please log in again.");
+          return;
+        }
+
         const { data: p, error: pErr } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", user?.id)
+          .eq("id", user.id)
           .maybeSingle();
         if (pErr) throw pErr;
 
@@ -511,13 +284,20 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
       }
     }
 
-    if (user?.id) load();
+    load();
     return () => {
       mounted = false;
     };
   }, [user?.id, user?.email]);
 
-  const displayName = username?.trim() || dbProfile?.username || "User";
+  // Optional: make reduce motion actually affect page animations
+  useEffect(() => {
+    const root = document.documentElement;
+    if (reduceMotion) root.classList.add("_reduceMotion");
+    else root.classList.remove("_reduceMotion");
+  }, [reduceMotion]);
+
+  const displayName = (username?.trim() || dbProfile?.username || "User").trim();
   const firstLetter = (displayName || "U").slice(0, 1).toUpperCase();
 
   const lastSignIn = sessionUser?.last_sign_in_at || sessionUser?.last_sign_in || null;
@@ -554,6 +334,7 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
   };
 
   const refreshLocalProfile = async () => {
+    if (!user?.id) return;
     const { data: p } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
     setDbProfile(p || null);
   };
@@ -626,7 +407,6 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
       const { error: upErr } = await supabase.storage
         .from("avatars")
         .upload(filePath, file, { upsert: true, cacheControl: "3600" });
-
       if (upErr) throw upErr;
 
       const { error: dbErr } = await supabase.from("profiles").update({ avatar_url: filePath }).eq("id", user.id);
@@ -731,356 +511,86 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
     setConfirm({ open: false, intent: "", title: "", subtitle: "" });
   };
 
+  const discardPrefs = () => {
+    setLocale(dbProfile?.locale || "en");
+    setTimezone(dbProfile?.timezone || "Asia/Singapore");
+    setTheme(dbProfile?.theme || "system");
+    setEmailNotif(dbProfile?.email_notif ?? true);
+    setInappNotif(dbProfile?.inapp_notif ?? true);
+    setReduceMotion(dbProfile?.reduce_motion ?? false);
+    showToast({ tone: "info", icon: "↩", title: "Changes Discarded", message: "Preferences reset." });
+  };
+
+  const discardProfile = () => {
+    setUsername(dbProfile?.username || "");
+    showToast({ tone: "info", icon: "↩", title: "Changes Reverted", message: "Draft discarded." });
+  };
+
   /* =========================
-     Styles
+     styles + layout
   ========================= */
   const styles = {
     page: {
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
-      color: "#f8fafc",
+      background: "#f5f5f7", // ✅ Kanban-like background
+      color: "#0f172a",
       fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       position: "relative",
       padding: "32px 24px",
     },
-
     container: {
       maxWidth: 1280,
       margin: "0 auto",
     },
-
-    topNav: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 32,
-      gap: 20,
-      flexWrap: "wrap",
-    },
-
-    breadcrumb: {
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      color: "#94a3b8",
-      fontSize: 13.5,
-      fontWeight: 600,
-      textTransform: "uppercase",
-      letterSpacing: "0.05em",
-    },
-
-    navActions: {
-      display: "flex",
-      gap: 12,
-      flexWrap: "wrap",
-    },
-
-    btn: {
-      padding: "11px 20px",
-      borderRadius: 10,
-      border: "1px solid rgba(148,163,184,0.25)",
-      background: "rgba(255,255,255,0.08)",
-      color: "#f8fafc",
-      cursor: "pointer",
-      fontWeight: 600,
-      fontSize: 14,
-      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-      backdropFilter: "blur(8px)",
-      fontFamily: '"DM Sans", sans-serif',
-    },
-
-    btnPrimary: {
-      padding: "11px 20px",
-      borderRadius: 10,
-      border: "1px solid rgba(255,255,255,0.2)",
-      background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-      color: "#fff",
-      cursor: "pointer",
-      fontWeight: 600,
-      fontSize: 14,
-      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-      boxShadow: "0 4px 16px rgba(59,130,246,0.4)",
-      fontFamily: '"DM Sans", sans-serif',
-    },
-
-    btnDanger: {
-      padding: "11px 20px",
-      borderRadius: 10,
-      border: "1px solid rgba(255,255,255,0.2)",
-      background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-      color: "#fff",
-      cursor: "pointer",
-      fontWeight: 600,
-      fontSize: 14,
-      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-      boxShadow: "0 4px 16px rgba(239,68,68,0.4)",
-      fontFamily: '"DM Sans", sans-serif',
-    },
-
-    hero: {
-      background: "linear-gradient(135deg, rgba(30,41,59,0.9) 0%, rgba(15,23,42,0.95) 100%)",
-      border: "1px solid rgba(148,163,184,0.2)",
-      borderRadius: 20,
-      padding: "28px 32px",
-      marginBottom: 32,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 24,
-      flexWrap: "wrap",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(148,163,184,0.1)",
-      backdropFilter: "blur(16px)",
-    },
-
-    avatarSection: {
-      display: "flex",
-      alignItems: "center",
-      gap: 20,
-    },
-
-    avatar: {
-      width: 72,
-      height: 72,
-      borderRadius: 999,
-      overflow: "hidden",
-      border: "2px solid rgba(59,130,246,0.5)",
-      background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-      boxShadow: "0 8px 24px rgba(59,130,246,0.35), 0 0 0 4px rgba(59,130,246,0.1)",
-      display: "grid",
-      placeItems: "center",
-      fontSize: 28,
-      fontWeight: 700,
-      color: "#fff",
-    },
-
-    heroText: {
-      flex: 1,
-      minWidth: 0,
-    },
-
-    heroName: {
-      fontSize: 26,
-      fontWeight: 700,
-      letterSpacing: "-0.03em",
-      color: "#f8fafc",
-      margin: 0,
-      marginBottom: 6,
-    },
-
-    heroEmail: {
-      fontSize: 14.5,
-      fontWeight: 500,
-      color: "#94a3b8",
-    },
-
-    grid: {
-      display: "grid",
-      gridTemplateColumns: "280px 1fr",
-      gap: 24,
-      alignItems: "flex-start",
-    },
-
-    sidebar: {
-      background: "rgba(30,41,59,0.6)",
-      border: "1px solid rgba(148,163,184,0.2)",
-      borderRadius: 16,
-      padding: 16,
-      backdropFilter: "blur(16px)",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
-    },
-
-    sideTitle: {
-      fontSize: 11.5,
-      fontWeight: 700,
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      color: "#64748b",
-      margin: "12px 16px 10px",
-    },
-
-    navItem: (active) => ({
-      width: "100%",
-      display: "flex",
-      alignItems: "center",
-      gap: 12,
-      padding: "12px 16px",
-      borderRadius: 12,
-      cursor: "pointer",
-      fontWeight: 600,
-      fontSize: 14,
-      border: active ? "1px solid rgba(59,130,246,0.4)" : "1px solid transparent",
-      background: active ? "linear-gradient(135deg, rgba(59,130,246,0.25) 0%, rgba(37,99,235,0.15) 100%)" : "transparent",
-      color: active ? "#93c5fd" : "#cbd5e1",
-      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-      textAlign: "left",
-      boxShadow: active ? "0 4px 16px rgba(59,130,246,0.2)" : "none",
-    }),
-
-    sideActions: {
-      marginTop: 16,
-      paddingTop: 16,
-      borderTop: "1px solid rgba(148,163,184,0.15)",
-      display: "grid",
-      gap: 10,
-    },
-
-    content: {
-      display: "grid",
-      gap: 24,
-    },
-
-    fieldGrid: {
-      display: "grid",
-      gridTemplateColumns: "200px 1fr",
-      gap: 16,
-      alignItems: "center",
-      padding: "14px 0",
-      borderBottom: "1px solid rgba(226,232,240,0.6)",
-    },
-
-    label: {
-      color: "#475569",
-      fontWeight: 600,
-      fontSize: 13.5,
-    },
-
-    valueText: {
-      fontWeight: 500,
-      fontSize: 14,
-      color: "#1e293b",
-      wordBreak: "break-word",
-    },
-
-    input: {
-      width: "100%",
-      maxWidth: 560,
-      padding: "12px 16px",
-      borderRadius: 10,
-      border: "1px solid rgba(203,213,225,0.8)",
-      background: "#fff",
-      outline: "none",
-      fontSize: 14,
-      fontWeight: 500,
-      color: "#1e293b",
-      transition: "all 0.25s ease",
-      fontFamily: '"DM Sans", sans-serif',
-    },
-
-    select: {
-      width: "100%",
-      maxWidth: 420,
-      padding: "12px 16px",
-      borderRadius: 10,
-      border: "1px solid rgba(203,213,225,0.8)",
-      background: "#fff",
-      outline: "none",
-      fontSize: 14,
-      fontWeight: 500,
-      color: "#1e293b",
-      cursor: "pointer",
-      transition: "all 0.25s ease",
-      fontFamily: '"DM Sans", sans-serif',
-    },
-
-    btnRow: {
-      marginTop: 20,
-      display: "flex",
-      gap: 12,
-      flexWrap: "wrap",
-    },
-
-    infoBox: {
-      marginTop: 16,
-      borderRadius: 12,
-      border: "1px solid rgba(59,130,246,0.25)",
-      background: "linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(37,99,235,0.05) 100%)",
-      padding: 16,
-      color: "#334155",
-      fontSize: 13.5,
-      fontWeight: 500,
-      lineHeight: 1.5,
-    },
-
-    errorBox: {
-      borderRadius: 12,
-      border: "1px solid rgba(239,68,68,0.3)",
-      background: "linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(220,38,38,0.10) 100%)",
-      padding: 16,
-      color: "#7f1d1d",
-      fontWeight: 600,
-      fontSize: 14,
-      display: "flex",
-      alignItems: "flex-start",
-      justifyContent: "space-between",
-      gap: 16,
-      marginBottom: 24,
-    },
-
-    loading: {
-      minHeight: "70vh",
-      display: "grid",
-      placeItems: "center",
-      color: "#94a3b8",
-      fontWeight: 600,
-      fontSize: 16,
-    },
   };
 
-  if (loading) return <div style={styles.loading}>Loading your profile...</div>;
+  if (loading) {
+    return (
+      <main style={styles.page}>
+        <StyleSheet />
+        <div style={styles.container}>
+          <div className="_topRow">
+            <div className="_crumb">Account <span>›</span> Settings</div>
+          </div>
+          <div className="_grid">
+            <div>
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+            <div>
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main style={styles.page}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
-        
-        * { box-sizing: border-box; }
-        
-        button:hover:not(:disabled) {
-          transform: translateY(-1px);
-        }
-        
-        button:active:not(:disabled) {
-          transform: translateY(0);
-        }
-        
-        input:focus, select:focus {
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
-        }
-        
-        @media (max-width: 980px) {
-          ._profile_grid { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
-
-      <Toast toast={toast} onClose={() => setToast(null)} />
+      <StyleSheet />
+      <Toast toast={toast} onClose={() => setToast(null)} reduceMotion={reduceMotion} />
 
       <Modal
         open={confirm.open}
         title={confirm.title}
         subtitle={confirm.subtitle}
         danger={true}
+        reduceMotion={reduceMotion}
         onClose={() => setConfirm({ open: false, intent: "", title: "", subtitle: "" })}
         footer={
           <>
-            <button
-              style={{
-                ...styles.btn,
-                background: "#fff",
-                color: "#475569",
-                border: "1px solid rgba(203,213,225,0.8)",
-              }}
-              onClick={() => setConfirm({ open: false, intent: "", title: "", subtitle: "" })}
-            >
+            <Button variant="outline" onClick={() => setConfirm({ open: false, intent: "", title: "", subtitle: "" })}>
               Cancel
-            </button>
-            <button style={styles.btnDanger} onClick={runConfirm} disabled={signOutAllBusy}>
+            </Button>
+            <Button variant="danger" onClick={runConfirm} disabled={signOutAllBusy}>
               {signOutAllBusy ? "Processing..." : "Terminate All Sessions"}
-            </button>
+            </Button>
           </>
         }
       >
-        <div style={{ color: "#64748b", fontWeight: 500, fontSize: 14, lineHeight: 1.6 }}>
+        <div className="_muted">
           If you suspect unauthorized access, sign out all devices immediately and reset your password.
           This action cannot be undone and will require you to log in again on all devices.
         </div>
@@ -1088,192 +598,123 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
 
       <div style={styles.container}>
         {/* TOP NAV */}
-        <div style={styles.topNav}>
-          <div style={styles.breadcrumb}>
+        <div className="_topRow">
+          <div className="_crumb">
             <span>Account</span>
-            <span style={{ opacity: 0.4 }}>›</span>
-            <span style={{ color: "#cbd5e1" }}>Settings</span>
+            <span>›</span>
+            <span className="_crumbStrong">Settings</span>
           </div>
 
-          <div style={styles.navActions}>
-            <button
-              style={styles.btn}
-              onClick={() => navigate(-1)}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.15)";
-                e.currentTarget.style.borderColor = "rgba(148,163,184,0.4)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-                e.currentTarget.style.borderColor = "rgba(148,163,184,0.25)";
-              }}
-            >
-              ← Back
-            </button>
-            <button
-              style={styles.btnDanger}
-              onClick={doLogout}
-              disabled={signingOut}
-              onMouseEnter={(e) => {
-                if (!signingOut) {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = "0 6px 20px rgba(239,68,68,0.5)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 16px rgba(239,68,68,0.4)";
-              }}
-            >
+          <div className="_topActions">
+            <Button variant="ghost" onClick={() => navigate(-1)}>← Back</Button>
+            <Button variant="danger" onClick={doLogout} disabled={signingOut}>
               {signingOut ? "Logging out..." : "Sign Out"}
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* ERROR BANNER */}
         {pageError && (
-          <div style={styles.errorBox}>
+          <div className="_errorBanner">
             <div>
-              <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 15 }}>System Error</div>
-              <div style={{ opacity: 0.95 }}>{pageError}</div>
+              <div className="_errorTitle">System Error</div>
+              <div className="_errorMsg">{pageError}</div>
             </div>
-            <button
-              style={{
-                ...styles.btn,
-                background: "#fff",
-                color: "#dc2626",
-                border: "1px solid rgba(220,38,38,0.3)",
-              }}
-              onClick={() => window.location.reload()}
-            >
-              Reload
-            </button>
+            <Button variant="outline" onClick={() => window.location.reload()}>Reload</Button>
           </div>
         )}
 
         {/* HERO */}
-        <div style={styles.hero}>
-          <div style={styles.avatarSection}>
-            <div style={styles.avatar}>
-              {avatarPublicUrl ? (
-                <img
-                  src={avatarPublicUrl}
-                  alt="Profile"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        <div className="_hero">
+          <div className="_heroLeft">
+            <div className="_avatarWrap">
+              <div className="_avatar">
+                {avatarPublicUrl ? (
+                  <img src={avatarPublicUrl} alt="Profile" className="_avatarImg" />
+                ) : (
+                  <span>{firstLetter}</span>
+                )}
+              </div>
+
+              <label className={`_avatarOverlay ${avatarBusy ? "_disabled" : ""}`}>
+                {avatarBusy ? "Uploading..." : "Change"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => uploadAvatar(e.target.files?.[0])}
+                  disabled={avatarBusy}
                 />
-              ) : (
-                firstLetter
-              )}
+              </label>
             </div>
 
-            <div style={styles.heroText}>
-              <h1 style={styles.heroName}>{displayName}</h1>
-              <div style={styles.heroEmail}>{email || "—"}</div>
+            <div className="_heroText">
+              <h1 className="_heroName">{displayName}</h1>
+              <div className="_heroEmail">{email || "—"}</div>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Badge variant="primary">RSAF</Badge>
+          <div className="_heroBadges">
+            <Badge variant="primary">Supabase Auth</Badge>
             <Badge variant="success">Active</Badge>
-            <Badge>Supabase Auth</Badge>
+            <Badge>Secure</Badge>
           </div>
         </div>
 
         {/* MAIN GRID */}
-        <div className="_profile_grid" style={styles.grid}>
+        <div className="_grid">
           {/* SIDEBAR */}
-          <aside style={styles.sidebar}>
-            <div style={styles.sideTitle}>Navigation</div>
+          <aside className="_sidebar">
+            <div className="_sideTitle">Navigation</div>
 
-            <button
-              style={styles.navItem(tab === "profile")}
-              onClick={() => setTab("profile")}
-              onMouseEnter={(e) => {
-                if (tab !== "profile") {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (tab !== "profile") {
-                  e.currentTarget.style.background = "transparent";
-                }
-              }}
-            >
+            <button className={`_navBtn ${tab === "profile" ? "_active" : ""}`} onClick={() => setTab("profile")}>
               Profile
             </button>
-
-            <button
-              style={styles.navItem(tab === "preferences")}
-              onClick={() => setTab("preferences")}
-              onMouseEnter={(e) => {
-                if (tab !== "preferences") {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (tab !== "preferences") {
-                  e.currentTarget.style.background = "transparent";
-                }
-              }}
-            >
+            <button className={`_navBtn ${tab === "preferences" ? "_active" : ""}`} onClick={() => setTab("preferences")}>
               Preferences
             </button>
-
-            <button
-              style={styles.navItem(tab === "security")}
-              onClick={() => setTab("security")}
-              onMouseEnter={(e) => {
-                if (tab !== "security") {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (tab !== "security") {
-                  e.currentTarget.style.background = "transparent";
-                }
-              }}
-            >
+            <button className={`_navBtn ${tab === "security" ? "_active" : ""}`} onClick={() => setTab("security")}>
               Security
             </button>
 
-            <div style={styles.sideActions}>
-              <button
-                style={{
-                  ...styles.btn,
-                  fontSize: 13,
-                  padding: "10px 16px",
-                }}
-                onClick={() => navigate("/organisations")}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.12)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-                }}
-              >
-                Workspaces
-              </button>
-              <button
-                style={{
-                  ...styles.btn,
-                  fontSize: 13,
-                  padding: "10px 16px",
-                }}
-                onClick={() => navigate("/kanban")}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.12)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-                }}
-              >
-                Kanban Board
-              </button>
+            <div className="_sideDivider" />
+
+            <div className="_sideActions">
+              <Button variant="ghost" onClick={() => navigate("/organisations")}>Workspaces</Button>
+              <Button variant="ghost" onClick={() => navigate("/kanban")}>Kanban Board</Button>
             </div>
           </aside>
 
           {/* CONTENT */}
-          <div style={styles.content}>
+          <div className="_content">
+            {/* sticky unsaved bar */}
+            {(profileDirty || prefsDirty) && (
+              <div className="_stickyBar">
+                <div className="_stickyText">
+                  <strong>Unsaved changes</strong>
+                  <span>Save or discard to keep your settings consistent.</span>
+                </div>
+                <div className="_stickyActions">
+                  {tab === "profile" && (
+                    <>
+                      <Button variant="outline" onClick={discardProfile} disabled={savingProfile}>Discard</Button>
+                      <Button variant="primary" onClick={saveUsername} disabled={!profileDirty || savingProfile}>
+                        {savingProfile ? "Saving..." : "Save Username"}
+                      </Button>
+                    </>
+                  )}
+                  {tab === "preferences" && (
+                    <>
+                      <Button variant="outline" onClick={discardPrefs} disabled={savingPrefs}>Discard</Button>
+                      <Button variant="primary" onClick={savePreferences} disabled={!prefsDirty || savingPrefs}>
+                        {savingPrefs ? "Saving..." : "Save Preferences"}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* PROFILE TAB */}
             {tab === "profile" && (
               <>
@@ -1282,70 +723,70 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
                   subtitle="Your identity displayed across the system."
                   actions={<Badge variant={profileDirty ? "warning" : "success"}>{profileDirty ? "Unsaved" : "Saved"}</Badge>}
                 >
-                  <div style={styles.fieldGrid}>
-                    <div style={styles.label}>User ID</div>
-                    <div style={styles.valueText}>{user?.id || "—"}</div>
+                  <div className="_row">
+                    <div className="_label">User ID</div>
+                    <div className="_val">
+                      <span>{user?.id || "—"}</span>
+                      {user?.id && (
+                        <button
+                          className="_miniBtn"
+                          onClick={async () => {
+                            const ok = await copyText(user.id);
+                            showToast(ok
+                              ? { tone: "success", icon: "📋", title: "Copied", message: "User ID copied to clipboard." }
+                              : { tone: "danger", icon: "✕", title: "Copy failed", message: "Clipboard permission blocked." }
+                            );
+                          }}
+                        >
+                          Copy
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div style={styles.fieldGrid}>
-                    <div style={styles.label}>Email Address</div>
-                    <div style={styles.valueText}>{email || "—"}</div>
+                  <div className="_row">
+                    <div className="_label">Email Address</div>
+                    <div className="_val">
+                      <span>{email || "—"}</span>
+                      {email && (
+                        <button
+                          className="_miniBtn"
+                          onClick={async () => {
+                            const ok = await copyText(email);
+                            showToast(ok
+                              ? { tone: "success", icon: "📋", title: "Copied", message: "Email copied to clipboard." }
+                              : { tone: "danger", icon: "✕", title: "Copy failed", message: "Clipboard permission blocked." }
+                            );
+                          }}
+                        >
+                          Copy
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div style={{ ...styles.fieldGrid, borderBottom: "none" }}>
-                    <div style={styles.label}>Username</div>
+                  <div className="_row _last">
+                    <div className="_label">Username</div>
                     <div>
                       <input
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        style={styles.input}
+                        className="_input"
                         placeholder="Enter your username"
                         onKeyDown={(e) => e.key === "Enter" && saveUsername()}
                         aria-label="Username"
                       />
+                      <div className="_hint">Tip: Keep it short + readable (used in boards and comments).</div>
                     </div>
                   </div>
 
-                  <div style={styles.btnRow}>
-                    <button
-                      style={{
-                        ...styles.btnPrimary,
-                        opacity: profileDirty ? 1 : 0.6,
-                        cursor: profileDirty && !savingProfile ? "pointer" : "not-allowed",
-                      }}
-                      onClick={saveUsername}
-                      disabled={savingProfile || !profileDirty}
-                      onMouseEnter={(e) => {
-                        if (profileDirty && !savingProfile) {
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                          e.currentTarget.style.boxShadow = "0 6px 20px rgba(59,130,246,0.5)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "0 4px 16px rgba(59,130,246,0.4)";
-                      }}
-                    >
+                  <div className="_btnRow">
+                    <Button variant="primary" onClick={saveUsername} disabled={savingProfile || !profileDirty}>
                       {savingProfile ? "Saving..." : "Save Username"}
-                    </button>
-
-                    <button
-                      style={{
-                        ...styles.btn,
-                        background: "#fff",
-                        color: "#475569",
-                        border: "1px solid rgba(203,213,225,0.8)",
-                        cursor: profileDirty && !savingProfile ? "pointer" : "not-allowed",
-                        opacity: profileDirty ? 1 : 0.6,
-                      }}
-                      onClick={() => {
-                        setUsername(dbProfile?.username || "");
-                        showToast({ tone: "info", icon: "↩", title: "Changes Reverted", message: "Draft discarded." });
-                      }}
-                      disabled={savingProfile || !profileDirty}
-                    >
+                    </Button>
+                    <Button variant="outline" onClick={discardProfile} disabled={savingProfile || !profileDirty}>
                       Discard
-                    </button>
+                    </Button>
                   </div>
                 </Card>
 
@@ -1354,27 +795,8 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
                   subtitle="Upload a square image (recommended 512×512px, max 3MB)."
                   actions={<Badge variant={avatarPublicUrl ? "success" : "default"}>{avatarPublicUrl ? "Active" : "Not Set"}</Badge>}
                 >
-                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-                    <label
-                      style={{
-                        ...styles.btnPrimary,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 10,
-                        cursor: avatarBusy ? "not-allowed" : "pointer",
-                        opacity: avatarBusy ? 0.6 : 1,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!avatarBusy) {
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                          e.currentTarget.style.boxShadow = "0 6px 20px rgba(59,130,246,0.5)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "0 4px 16px rgba(59,130,246,0.4)";
-                      }}
-                    >
+                  <div className="_btnRow">
+                    <label className={`_btn _v_primary ${avatarBusy ? "_disabled" : ""}`} style={{ display: "inline-flex", gap: 10 }}>
                       {avatarBusy ? "Uploading..." : "Upload Image"}
                       <input
                         type="file"
@@ -1385,30 +807,19 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
                       />
                     </label>
 
-                    <button
-                      style={{
-                        ...styles.btn,
-                        background: "#fff",
-                        color: "#475569",
-                        border: "1px solid rgba(203,213,225,0.8)",
-                        cursor: !avatarBusy && avatarUrl ? "pointer" : "not-allowed",
-                        opacity: !avatarBusy && avatarUrl ? 1 : 0.6,
-                      }}
-                      onClick={removeAvatar}
-                      disabled={avatarBusy || !avatarUrl}
-                    >
+                    <Button variant="outline" onClick={removeAvatar} disabled={avatarBusy || !avatarUrl}>
                       Remove
-                    </button>
+                    </Button>
 
-                    <div style={{ color: "#64748b", fontWeight: 500, fontSize: 13 }}>
+                    <div className="_muted" style={{ marginLeft: 8 }}>
                       PNG, JPG, or WEBP format
                     </div>
                   </div>
 
-                  <div style={styles.infoBox}>
-                    <div style={{ fontWeight: 700, marginBottom: 8, color: "#1e293b" }}>Storage Information</div>
+                  <div className="_infoBox">
+                    <div className="_infoTitle">Storage Information</div>
                     <div>
-                      Profile pictures are stored securely in Supabase Storage. File path: <code>{user?.id}/avatar.[ext]</code>
+                      Stored in Supabase Storage under: <code>{user?.id}/avatar.[ext]</code>
                     </div>
                   </div>
                 </Card>
@@ -1418,32 +829,19 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
             {/* PREFERENCES TAB */}
             {tab === "preferences" && (
               <>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: -8 }}>
+                <div className="_sectionHead">
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 18, color: "#f8fafc", letterSpacing: "-0.02em" }}>
-                      User Preferences
-                    </div>
-                    <div style={{ fontSize: 13.5, fontWeight: 500, color: "#94a3b8", marginTop: 4 }}>
-                      {prefsDirty ? "You have unsaved changes." : "All preferences are saved."}
-                    </div>
+                    <div className="_sectionTitle">User Preferences</div>
+                    <div className="_sectionSub">{prefsDirty ? "You have unsaved changes." : "All preferences are saved."}</div>
                   </div>
                   <Badge variant={prefsDirty ? "warning" : "success"}>{prefsDirty ? "Unsaved" : "Saved"}</Badge>
                 </div>
 
-                <Card
-                  title="Language & Region"
-                  subtitle="Configure language and timezone settings."
-                  actions={<Badge variant="primary">Standard</Badge>}
-                >
-                  <div style={styles.fieldGrid}>
-                    <div style={styles.label}>Language</div>
+                <Card title="Language & Region" subtitle="Configure language and timezone settings." actions={<Badge variant="primary">Standard</Badge>}>
+                  <div className="_row">
+                    <div className="_label">Language</div>
                     <div>
-                      <select
-                        value={locale}
-                        onChange={(e) => setLocale(e.target.value)}
-                        style={styles.select}
-                        aria-label="Language"
-                      >
+                      <select value={locale} onChange={(e) => setLocale(e.target.value)} className="_select" aria-label="Language">
                         <option value="en">English</option>
                         <option value="zh">Chinese (中文)</option>
                         <option value="ms">Malay (Bahasa Melayu)</option>
@@ -1452,15 +850,10 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
                     </div>
                   </div>
 
-                  <div style={{ ...styles.fieldGrid, borderBottom: "none" }}>
-                    <div style={styles.label}>Timezone</div>
+                  <div className="_row _last">
+                    <div className="_label">Timezone</div>
                     <div>
-                      <select
-                        value={timezone}
-                        onChange={(e) => setTimezone(e.target.value)}
-                        style={styles.select}
-                        aria-label="Timezone"
-                      >
+                      <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className="_select" aria-label="Timezone">
                         <option value="Asia/Singapore">Asia/Singapore (GMT+8)</option>
                         <option value="Asia/Kuala_Lumpur">Asia/Kuala Lumpur (GMT+8)</option>
                         <option value="Asia/Jakarta">Asia/Jakarta (GMT+7)</option>
@@ -1471,20 +864,11 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
                   </div>
                 </Card>
 
-                <Card
-                  title="Appearance & Notifications"
-                  subtitle="Display preferences and notification settings."
-                  actions={<Badge>System</Badge>}
-                >
-                  <div style={styles.fieldGrid}>
-                    <div style={styles.label}>Theme</div>
+                <Card title="Appearance & Notifications" subtitle="Display preferences and notification settings." actions={<Badge>System</Badge>}>
+                  <div className="_row">
+                    <div className="_label">Theme</div>
                     <div>
-                      <select
-                        value={theme}
-                        onChange={(e) => setTheme(e.target.value)}
-                        style={styles.select}
-                        aria-label="Theme"
-                      >
+                      <select value={theme} onChange={(e) => setTheme(e.target.value)} className="_select" aria-label="Theme">
                         <option value="system">System Default</option>
                         <option value="light">Light Mode</option>
                         <option value="dark">Dark Mode</option>
@@ -1492,78 +876,40 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(226,232,240,0.6)" }}>
-                    <Switch
-                      checked={reduceMotion}
-                      onChange={setReduceMotion}
-                      label="Reduce Motion"
-                      description="Minimize animations for accessibility."
-                    />
-                    <Switch
-                      checked={inappNotif}
-                      onChange={setInappNotif}
-                      label="In-App Notifications"
-                      description="Show alerts and updates within the application."
-                    />
-                    <Switch
-                      checked={emailNotif}
-                      onChange={setEmailNotif}
-                      label="Email Notifications"
-                      description="Receive important account notifications via email."
-                    />
-                  </div>
+                  <div className="_divider" />
 
-                  <div style={styles.btnRow}>
-                    <button
-                      style={{
-                        ...styles.btnPrimary,
-                        opacity: prefsDirty ? 1 : 0.6,
-                        cursor: prefsDirty && !savingPrefs ? "pointer" : "not-allowed",
-                      }}
-                      onClick={savePreferences}
-                      disabled={savingPrefs || !prefsDirty}
-                      onMouseEnter={(e) => {
-                        if (prefsDirty && !savingPrefs) {
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                          e.currentTarget.style.boxShadow = "0 6px 20px rgba(59,130,246,0.5)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "0 4px 16px rgba(59,130,246,0.4)";
-                      }}
-                    >
+                  <Switch
+                    checked={reduceMotion}
+                    onChange={setReduceMotion}
+                    label="Reduce Motion"
+                    description="Minimize animations for accessibility."
+                  />
+                  <Switch
+                    checked={inappNotif}
+                    onChange={setInappNotif}
+                    label="In-App Notifications"
+                    description="Show alerts and updates within the application."
+                  />
+                  <Switch
+                    checked={emailNotif}
+                    onChange={setEmailNotif}
+                    label="Email Notifications"
+                    description="Receive important account notifications via email."
+                  />
+
+                  <div className="_btnRow">
+                    <Button variant="primary" onClick={savePreferences} disabled={savingPrefs || !prefsDirty}>
                       {savingPrefs ? "Saving..." : "Save Preferences"}
-                    </button>
-
-                    <button
-                      style={{
-                        ...styles.btn,
-                        background: "#fff",
-                        color: "#475569",
-                        border: "1px solid rgba(203,213,225,0.8)",
-                        cursor: prefsDirty && !savingPrefs ? "pointer" : "not-allowed",
-                        opacity: prefsDirty ? 1 : 0.6,
-                      }}
-                      onClick={() => {
-                        setLocale(dbProfile?.locale || "en");
-                        setTimezone(dbProfile?.timezone || "Asia/Singapore");
-                        setTheme(dbProfile?.theme || "system");
-                        setEmailNotif(dbProfile?.email_notif ?? true);
-                        setInappNotif(dbProfile?.inapp_notif ?? true);
-                        setReduceMotion(dbProfile?.reduce_motion ?? false);
-                        showToast({ tone: "info", icon: "↩", title: "Changes Discarded", message: "Preferences reset." });
-                      }}
-                      disabled={savingPrefs || !prefsDirty}
-                    >
+                    </Button>
+                    <Button variant="outline" onClick={discardPrefs} disabled={savingPrefs || !prefsDirty}>
                       Discard Changes
-                    </button>
+                    </Button>
                   </div>
 
-                  <div style={styles.infoBox}>
-                    <div style={{ fontWeight: 700, marginBottom: 8, color: "#1e293b" }}>Enterprise Feature</div>
+                  <div className="_infoBox">
+                    <div className="_infoTitle">Quality-of-life</div>
                     <div>
-                      Save button is disabled until changes are detected to prevent accidental writes and improve audit trail clarity.
+                      Save button is disabled until changes are detected (prevents accidental writes + cleaner audit trail).
                     </div>
                   </div>
                 </Card>
@@ -1573,70 +919,30 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
             {/* SECURITY TAB */}
             {tab === "security" && (
               <>
-                <Card
-                  title="Session Management"
-                  subtitle="View and control your active sessions."
-                  actions={<Badge variant="success">Active</Badge>}
-                >
-                  <div style={styles.fieldGrid}>
-                    <div style={styles.label}>Last Login</div>
-                    <div style={styles.valueText}>{formatDateMaybe(lastSignIn)}</div>
+                <Card title="Session Management" subtitle="View and control your active sessions." actions={<Badge variant="success">Active</Badge>}>
+                  <div className="_row">
+                    <div className="_label">Last Login</div>
+                    <div className="_valOnly">{formatDateMaybe(lastSignIn)}</div>
                   </div>
 
-                  <div style={{ ...styles.fieldGrid, borderBottom: "none" }}>
-                    <div style={styles.label}>Account Created</div>
-                    <div style={styles.valueText}>{formatDateMaybe(createdAt)}</div>
+                  <div className="_row _last">
+                    <div className="_label">Account Created</div>
+                    <div className="_valOnly">{formatDateMaybe(createdAt)}</div>
                   </div>
 
-                  <div style={styles.btnRow}>
-                    <button
-                      style={{
-                        ...styles.btn,
-                        background: "#fff",
-                        color: "#475569",
-                        border: "1px solid rgba(203,213,225,0.8)",
-                      }}
-                      onClick={signOutOtherDevices}
-                      disabled={signOutOthersBusy}
-                      onMouseEnter={(e) => {
-                        if (!signOutOthersBusy) {
-                          e.currentTarget.style.background = "#f8fafc";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "#fff";
-                      }}
-                    >
+                  <div className="_btnRow">
+                    <Button variant="outline" onClick={signOutOtherDevices} disabled={signOutOthersBusy}>
                       {signOutOthersBusy ? "Processing..." : "Sign Out Other Devices"}
-                    </button>
-
-                    <button
-                      style={{
-                        ...styles.btnDanger,
-                        opacity: signOutAllBusy ? 0.6 : 1,
-                      }}
-                      onClick={openConfirmSignoutAll}
-                      disabled={signOutAllBusy}
-                      onMouseEnter={(e) => {
-                        if (!signOutAllBusy) {
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                          e.currentTarget.style.boxShadow = "0 6px 20px rgba(239,68,68,0.5)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "0 4px 16px rgba(239,68,68,0.4)";
-                      }}
-                    >
+                    </Button>
+                    <Button variant="danger" onClick={openConfirmSignoutAll} disabled={signOutAllBusy}>
                       Terminate All Sessions
-                    </button>
+                    </Button>
                   </div>
 
-                  <div style={styles.infoBox}>
-                    <div style={{ fontWeight: 700, marginBottom: 8, color: "#1e293b" }}>Security Advisory</div>
+                  <div className="_infoBox">
+                    <div className="_infoTitle">Security Advisory</div>
                     <div>
-                      For enterprise deployments, consider implementing comprehensive audit logs for session management,
-                      sign-out events, and password resets to maintain security compliance.
+                      For production: add audit logs for sign-out events + reset requests to improve traceability.
                     </div>
                   </div>
                 </Card>
@@ -1647,30 +953,11 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
                   actions={<Badge variant="primary">Encrypted</Badge>}
                   variant="danger"
                 >
-                  <div style={{ display: "grid", gap: 16 }}>
-                    <button
-                      style={{
-                        ...styles.btnPrimary,
-                        opacity: sendingReset ? 0.6 : 1,
-                      }}
-                      onClick={sendResetPasswordEmail}
-                      disabled={sendingReset}
-                      onMouseEnter={(e) => {
-                        if (!sendingReset) {
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                          e.currentTarget.style.boxShadow = "0 6px 20px rgba(59,130,246,0.5)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "0 4px 16px rgba(59,130,246,0.4)";
-                      }}
-                    >
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <Button variant="primary" onClick={sendResetPasswordEmail} disabled={sendingReset}>
                       {sendingReset ? "Sending..." : "Send Password Reset Email"}
-                    </button>
-                    <div style={{ color: "#64748b", fontWeight: 500, fontSize: 13.5, lineHeight: 1.5 }}>
-                      You'll receive a secure password reset link in your registered email inbox. The link expires after 1 hour.
-                    </div>
+                    </Button>
+                    <div className="_muted">You’ll receive a reset link in your inbox. The link expires after 1 hour.</div>
                   </div>
                 </Card>
               </>
@@ -1679,5 +966,442 @@ export default function ProfilePage({ user, profile, onProfileUpdated }) {
         </div>
       </div>
     </main>
+  );
+}
+
+/* =========================
+   Styles (single place, no inline hover hacks)
+   ✅ colours adjusted to match Kanban (light + purple hint)
+========================= */
+function StyleSheet() {
+  return (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+      * { box-sizing: border-box; }
+      :root._reduceMotion * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+
+      :root{
+        --bg: #f5f5f7;
+        --card: #ffffff;
+        --muted: #6b7280;
+        --text: #0f172a;
+        --border: #e2e2e2;
+
+        /* Kanban purple hint */
+        --p: #6a3df0;
+        --p2:#7b5cff;
+        --lav: #ebe7ff;
+        --lav2:#f4f2ff;
+      }
+
+      ._topRow { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom: 22px; }
+      ._crumb { display:flex; gap:10px; align-items:center; color:#6b7280; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+      ._crumb span:nth-child(2){ opacity:0.6; }
+      ._crumbStrong { color:#111827; }
+      ._topActions { display:flex; gap:10px; flex-wrap:wrap; }
+
+      ._grid { display:grid; grid-template-columns: 280px 1fr; gap: 22px; align-items:start; }
+      @media (max-width: 980px) { ._grid { grid-template-columns: 1fr; } }
+
+      ._sidebar {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 14px;
+        box-shadow: 0 10px 28px rgba(15,23,42,0.06);
+      }
+      ._sideTitle {
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.10em;
+        color: #6b7280;
+        margin: 10px 10px 12px;
+      }
+      ._navBtn {
+        width: 100%;
+        text-align: left;
+        border: 1px solid transparent;
+        background: transparent;
+        color: #111827;
+        border-radius: 12px;
+        padding: 12px 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform .15s ease, background .15s ease, border-color .15s ease;
+      }
+      ._navBtn:hover { background: rgba(17,24,39,0.04); transform: translateY(-1px); }
+      ._navBtn._active {
+        border-color: rgba(106,61,240,0.28);
+        background: var(--lav);
+        color: var(--p);
+        box-shadow: 0 10px 24px rgba(106,61,240,0.10);
+      }
+      ._sideDivider { height: 1px; background: rgba(226,232,240,0.95); margin: 14px 8px; }
+      ._sideActions { display:grid; gap:10px; padding: 0 6px 6px; }
+
+      ._content { display:grid; gap: 18px; }
+
+      ._hero {
+        border-radius: 22px;
+        padding: 26px 28px;
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        flex-wrap:wrap;
+        gap: 18px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        box-shadow: 0 18px 50px rgba(15,23,42,0.06);
+        margin-bottom: 18px;
+      }
+      ._heroLeft { display:flex; align-items:center; gap: 16px; min-width: 260px; }
+      ._heroText { min-width: 0; }
+      ._heroName { margin:0; font-size: 26px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
+      ._heroEmail { color: var(--muted); font-weight: 600; font-size: 14px; margin-top: 4px; }
+      ._heroBadges { display:flex; gap: 10px; flex-wrap:wrap; }
+
+      ._avatarWrap { position: relative; width: 74px; height: 74px; }
+      ._avatar {
+        width: 74px; height: 74px; border-radius: 999px; overflow:hidden;
+        display:grid; place-items:center;
+        background: linear-gradient(135deg, var(--p), var(--p2));
+        border: 2px solid rgba(106,61,240,0.35);
+        box-shadow: 0 12px 30px rgba(106,61,240,0.20), 0 0 0 4px rgba(106,61,240,0.08);
+        font-size: 28px; font-weight: 900; color:#fff;
+      }
+      ._avatarImg { width:100%; height:100%; object-fit: cover; }
+      ._avatarOverlay{
+        position:absolute; inset:0;
+        display:flex; justify-content:center; align-items:center;
+        background: rgba(17,24,39,0.45);
+        color:#fff;
+        font-weight: 800;
+        border-radius: 999px;
+        opacity: 0;
+        cursor: pointer;
+        transition: opacity .18s ease;
+        user-select:none;
+      }
+      ._avatarWrap:hover ._avatarOverlay { opacity: 1; }
+      ._avatarOverlay._disabled { opacity: 0.6; cursor: not-allowed; }
+
+      ._card {
+        border-radius: 16px;
+        overflow:hidden;
+        border: 1px solid var(--border);
+        background: var(--card);
+        box-shadow: 0 10px 30px rgba(15,23,42,0.06);
+      }
+      ._cardHeader{
+        padding: 16px 20px;
+        display:flex; justify-content:space-between; align-items:flex-start; gap: 12px;
+        background: linear-gradient(135deg, #fafafa, #ffffff);
+        border-bottom: 1px solid rgba(226,232,240,0.95);
+      }
+      ._cardHeader._danger{
+        background: linear-gradient(135deg, #fff1f2, #ffffff);
+      }
+      ._cardTitle{ font-weight: 900; color: var(--text); font-size: 16px; letter-spacing: -0.02em; }
+      ._cardSub{ margin-top: 4px; color: #6b7280; font-weight: 600; font-size: 13px; line-height: 1.4; }
+      ._cardBody{ padding: 20px; }
+
+      ._row{
+        display:grid; grid-template-columns: 180px 1fr; gap: 14px;
+        padding: 14px 0;
+        border-bottom: 1px solid rgba(226,232,240,0.85);
+        align-items:center;
+      }
+      ._row._last { border-bottom: none; }
+      @media (max-width: 680px){ ._row{ grid-template-columns: 1fr; } }
+      ._label{ color:#4b5563; font-weight: 800; font-size: 13px; }
+      ._val{ display:flex; align-items:center; gap: 10px; flex-wrap:wrap; color: var(--text); font-weight: 650; }
+      ._valOnly{ color: var(--text); font-weight: 650; }
+      ._hint{ margin-top: 8px; color:#6b7280; font-weight: 600; font-size: 12.5px; }
+
+      ._input, ._select{
+        width: 100%;
+        max-width: 560px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(203,213,225,0.95);
+        background: #fff;
+        outline: none;
+        color: var(--text);
+        font-weight: 650;
+        font-size: 14px;
+        transition: box-shadow .15s ease, border-color .15s ease, transform .15s ease;
+      }
+      ._select { max-width: 420px; cursor: pointer; }
+      ._input:focus, ._select:focus{
+        border-color: rgba(106,61,240,0.65);
+        box-shadow: 0 0 0 4px rgba(106,61,240,0.14);
+      }
+
+      ._btnRow { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; align-items:center; }
+
+      ._btn{
+        border: 1px solid rgba(148,163,184,0.25);
+        border-radius: 12px;
+        padding: 11px 16px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease;
+        display:inline-flex; align-items:center; justify-content:center;
+        user-select:none;
+      }
+      ._btn:disabled{ opacity: 0.6; cursor: not-allowed; transform:none !important; }
+      ._v_ghost { background: rgba(106,61,240,0.08); color: var(--p); border-color: rgba(106,61,240,0.18); }
+      ._v_ghost:hover { background: rgba(106,61,240,0.12); transform: translateY(-1px); }
+
+      ._v_primary{
+        background: linear-gradient(135deg, var(--p), var(--p2));
+        border-color: rgba(106,61,240,0.25);
+        color:#fff;
+        box-shadow: 0 10px 26px rgba(106,61,240,0.20);
+      }
+      ._v_primary:hover{ transform: translateY(-1px); box-shadow: 0 14px 34px rgba(106,61,240,0.26); }
+
+      ._v_outline{
+        background:#fff;
+        border-color: rgba(203,213,225,0.95);
+        color:#334155;
+      }
+      ._v_outline:hover{ transform: translateY(-1px); box-shadow: 0 10px 26px rgba(15,23,42,0.06); }
+
+      ._v_danger{
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        border-color: rgba(255,255,255,0.20);
+        color:#fff;
+        box-shadow: 0 10px 26px rgba(239,68,68,0.18);
+      }
+      ._v_danger:hover{ transform: translateY(-1px); box-shadow: 0 14px 34px rgba(239,68,68,0.24); }
+
+      ._disabled{ opacity:0.6; cursor:not-allowed; }
+
+      ._miniBtn{
+        border: 1px solid rgba(203,213,225,0.95);
+        background:#fff;
+        color:#334155;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-weight: 800;
+        cursor:pointer;
+        font-size: 12px;
+        transition: transform .12s ease, box-shadow .12s ease;
+      }
+      ._miniBtn:hover{ transform: translateY(-1px); box-shadow: 0 10px 20px rgba(15,23,42,0.06); }
+
+      ._badge{
+        display:inline-flex;
+        align-items:center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        border: 1px solid rgba(148,163,184,0.20);
+        background: linear-gradient(135deg, #eef2ff, #f5f3ff);
+        color:#4b5563;
+        box-shadow: 0 8px 18px rgba(15,23,42,0.05);
+      }
+      ._b_primary{ background: linear-gradient(135deg, var(--p), var(--p2)); color:#fff; border-color: rgba(106,61,240,0.22); }
+      ._b_success{ background: linear-gradient(135deg, #10b981, #059669); color:#fff; border-color: rgba(16,185,129,0.22); }
+      ._b_warning{ background: linear-gradient(135deg, #f59e0b, #d97706); color:#fff; border-color: rgba(245,158,11,0.22); }
+      ._b_danger{ background: linear-gradient(135deg, #ef4444, #dc2626); color:#fff; border-color: rgba(239,68,68,0.22); }
+
+      ._divider { height: 1px; background: rgba(226,232,240,0.85); margin: 14px 0; }
+
+      ._infoBox{
+        margin-top: 16px;
+        border-radius: 14px;
+        border: 1px solid rgba(106,61,240,0.18);
+        background: linear-gradient(135deg, var(--lav2), rgba(106,61,240,0.05));
+        padding: 14px;
+        color:#334155;
+        font-weight: 650;
+        line-height: 1.5;
+        font-size: 13px;
+      }
+      ._infoTitle{ font-weight: 900; margin-bottom: 6px; color: var(--text); }
+
+      ._errorBanner{
+        display:flex; justify-content:space-between; gap: 14px; align-items:flex-start;
+        padding: 14px 16px;
+        border-radius: 14px;
+        border: 1px solid rgba(239,68,68,0.22);
+        background: linear-gradient(135deg, rgba(239,68,68,0.10), rgba(220,38,38,0.05));
+        color:#7f1d1d;
+        margin-bottom: 18px;
+      }
+      ._errorTitle{ font-weight: 900; color:#7f1d1d; margin-bottom: 4px; }
+      ._errorMsg{ color:#991b1b; font-weight: 700; }
+
+      ._sectionHead{ display:flex; justify-content:space-between; align-items:flex-end; gap: 12px; flex-wrap:wrap; margin-top: 4px; }
+      ._sectionTitle{ color: var(--text); font-weight: 900; font-size: 18px; letter-spacing: -0.02em; }
+      ._sectionSub{ color: #6b7280; font-weight: 700; font-size: 13px; margin-top: 4px; }
+
+      ._stickyBar{
+        position: sticky;
+        top: 18px;
+        z-index: 5;
+        border-radius: 16px;
+        border: 1px solid rgba(106,61,240,0.18);
+        background: linear-gradient(135deg, var(--lav2), rgba(106,61,240,0.06));
+        box-shadow: 0 18px 50px rgba(15,23,42,0.08);
+        padding: 14px 14px;
+        display:flex; justify-content:space-between; align-items:center; gap: 14px; flex-wrap:wrap;
+      }
+      ._stickyText{ display:flex; flex-direction:column; gap: 2px; color: var(--text); }
+      ._stickyText strong{ font-weight: 900; letter-spacing: -0.01em; }
+      ._stickyText span{ color:#4b5563; font-weight: 700; font-size: 13px; }
+      ._stickyActions{ display:flex; gap: 10px; flex-wrap:wrap; }
+
+      ._muted{ color:#6b7280; font-weight: 650; font-size: 13px; line-height: 1.5; }
+      code{ background: rgba(17,24,39,0.06); padding: 2px 6px; border-radius: 8px; }
+
+      /* Switch */
+      ._switchRow{
+        display:flex; justify-content:space-between; gap: 14px; align-items:flex-start;
+        padding: 12px 0;
+        border-bottom: 1px solid rgba(226,232,240,0.85);
+      }
+      ._switchLabel{ font-weight: 900; font-size: 14px; color: var(--text); }
+      ._switchDesc{ color:#6b7280; font-weight: 650; font-size: 13px; margin-top: 4px; line-height: 1.4; }
+      ._switch{
+        width: 48px; height: 28px; border-radius: 999px;
+        border: 1px solid rgba(203,213,225,0.95);
+        background: linear-gradient(135deg, #e5e7eb, #d1d5db);
+        position: relative;
+        cursor: pointer;
+        transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+        flex: 0 0 auto;
+      }
+      ._switch._on{
+        background: linear-gradient(135deg, var(--p), var(--p2));
+        box-shadow: 0 10px 24px rgba(106,61,240,0.20);
+      }
+      ._switchKnob{
+        position:absolute;
+        top: 3px; left: 3px;
+        width: 22px; height: 22px;
+        border-radius: 999px;
+        background:#fff;
+        box-shadow: 0 8px 18px rgba(15,23,42,0.16);
+        transition: left .18s ease;
+      }
+      ._switch._on ._switchKnob{ left: 23px; }
+      ._switch:disabled{ opacity: 0.6; cursor:not-allowed; }
+
+      /* Toast */
+      ._toast{
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 9999;
+        width: min(420px, calc(100vw - 48px));
+        padding: 16px 16px;
+        border-radius: 14px;
+        box-shadow: 0 24px 64px rgba(15,23,42,0.18), 0 0 0 1px rgba(15,23,42,0.06);
+        backdrop-filter: blur(16px);
+        display:flex;
+        gap: 12px;
+        align-items:flex-start;
+        animation: toastIn .28s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      ._toast._rm{ animation:none; }
+      @keyframes toastIn{
+        from { transform: translateX(120%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      ._toastIcon{ font-size: 20px; line-height: 20px; }
+      ._toastTitle{ font-weight: 900; font-size: 14px; letter-spacing: -0.01em; margin-bottom: 2px; }
+      ._toastMsg{ opacity: 0.92; font-size: 13px; line-height: 1.45; font-weight: 650; word-break: break-word; }
+      ._iconBtn{
+        border:none;
+        background: transparent;
+        cursor:pointer;
+        font-weight: 900;
+        padding: 6px;
+        margin: -6px;
+        border-radius: 10px;
+      }
+      ._toastClose{ color: currentColor; opacity: 0.85; }
+      ._toastClose:hover{ background: rgba(17,24,39,0.06); opacity: 1; }
+      ._modalClose{ color: rgba(17,24,39,0.70); }
+      ._modalClose:hover{ background: rgba(17,24,39,0.06); }
+
+      /* Modal */
+      ._modalBackdrop{
+        position: fixed; inset:0; z-index: 9000;
+        background: rgba(17,24,39,0.45);
+        backdrop-filter: blur(8px);
+        display:grid;
+        place-items:center;
+        padding: 20px;
+        animation: fadeIn .18s ease;
+      }
+      ._modalBackdrop._rm{ animation:none; }
+      @keyframes fadeIn{ from{opacity:0} to{opacity:1} }
+      ._modal{
+        width: min(560px, 100%);
+        border-radius: 16px;
+        background:#fff;
+        border: 1px solid rgba(226,232,240,0.75);
+        box-shadow: 0 32px 96px rgba(15,23,42,0.20);
+        overflow:hidden;
+        animation: popIn .22s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      ._modalBackdrop._rm ._modal{ animation:none; }
+      @keyframes popIn{ from{transform: scale(0.94) translateY(18px); opacity:0} to{transform:none; opacity:1} }
+      ._modalHeader{
+        padding: 18px 20px;
+        display:flex; justify-content:space-between; align-items:flex-start; gap: 14px;
+        border-bottom: 1px solid rgba(226,232,240,0.9);
+        background: linear-gradient(135deg, #fafafa, #ffffff);
+      }
+      ._modalHeader._danger{ background: linear-gradient(135deg, #fff1f2, #ffffff); }
+      ._modalTitle{ font-weight: 900; font-size: 17px; color: var(--text); letter-spacing: -0.02em; }
+      ._modalSub{ font-weight: 700; font-size: 13px; color:#dc2626; margin-top: 4px; }
+      ._modalBody{ padding: 20px; }
+      ._modalFooter{
+        padding: 14px 20px;
+        border-top: 1px solid rgba(226,232,240,0.9);
+        display:flex; justify-content:flex-end; gap: 10px; flex-wrap:wrap;
+        background:#fafafa;
+      }
+
+      /* Skeleton */
+      ._skCard{
+        border-radius: 16px;
+        border: 1px solid rgba(226,232,240,0.95);
+        background: #ffffff;
+        padding: 18px;
+        margin-bottom: 14px;
+        overflow:hidden;
+        position: relative;
+        box-shadow: 0 10px 26px rgba(15,23,42,0.05);
+      }
+      ._skCard:before{
+        content:"";
+        position:absolute;
+        inset:-40px;
+        background: linear-gradient(90deg, transparent, rgba(106,61,240,0.10), transparent);
+        transform: translateX(-60%);
+        animation: shimmer 1.2s infinite;
+      }
+      :root._reduceMotion ._skCard:before{ animation:none; }
+      @keyframes shimmer{ to{ transform: translateX(60%); } }
+      ._skLine{
+        height: 12px;
+        border-radius: 999px;
+        background: rgba(17,24,39,0.06);
+        margin: 10px 0;
+      }
+      ._w60{ width: 60%; }
+      ._w70{ width: 70%; }
+      ._w90{ width: 90%; }
+    `}</style>
   );
 }
