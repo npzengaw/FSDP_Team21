@@ -1,3 +1,6 @@
+/* ====================================
+   SIDEBAR STYLES - MUST BE FIRST
+   ==================================== */
 .sidebar {
   width: 230px;
   height: 100vh;
@@ -5,24 +8,74 @@
   border-right: 1px solid #e2e2e2;
   padding: 25px 20px;
   box-sizing: border-box;
-  position: fixed;
-  left: 0;
-  top: 0;
+  position: fixed !important;
+  left: 0 !important;
+  top: 0 !important;
   display: flex;
   flex-direction: column;
-
-  align-items: flex-start;  /* <-- FORCE LEFT ALIGN */
-  text-align: left;         /* <-- FORCE LEFT ALIGN */
+  align-items: flex-start;
+  text-align: left;
+  transition: width 0.3s ease, padding 0.3s ease;
+  z-index: 10000 !important;
+  will-change: width;
 }
 
+/* Collapsed state - minimal width */
+.sidebar.collapsed {
+  width: 55px;
+  padding: 25px 4px;
+}
+
+/* ====================================
+   REST OF SIDEBAR STYLES
+   ==================================== */
+
+/* --- HEADER (TITLE + COLLAPSE BUTTON) --- */
+.sidebar-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 40px;
+}
 
 /* --- TITLE --- */
 .side-title {
   font-size: 26px;
   font-weight: 800;
   color: #6a3df0;
-  margin-bottom: 40px;
-  text-align: left;     /* ensure left alignment */
+  margin: 0;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+
+.sidebar.collapsed .side-title {
+  opacity: 0;
+  width: 0;
+}
+
+/* --- COLLAPSE BUTTON --- */
+.collapse-btn {
+  background: none;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #777;
+  font-size: 20px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.collapse-btn:hover {
+  background: #f3f3ff;
+  color: #6a3df0;
 }
 
 /* --- MAIN NAVIGATION LIST --- */
@@ -30,6 +83,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  width: 100%;
 }
 
 /* --- LINK STYLE --- */
@@ -39,31 +93,52 @@
   font-size: 15px;
   padding: 10px 8px;
   border-radius: 8px;
-
   display: flex;
   align-items: center;
   gap: 12px;
-
   background: none;
-  border: none !important;   /* 🔥 force remove */
-  outline: none !important;  /* 🔥 force remove */
+  border: none !important;
+  outline: none !important;
   box-shadow: none !important;
-
-  transition: 0.2s ease;
+  transition: all 0.2s ease;
   cursor: pointer;
+  white-space: nowrap;
+  width: 100%;
+  position: relative;
 }
-
 
 /* Icon style */
 .side-link .icon {
   font-size: 18px;
   color: #777;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+/* Link text wrapper */
+.link-text {
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+
+.sidebar.collapsed .link-text {
+  opacity: 0;
+  width: 0;
+}
+
+/* Center icons when collapsed */
+.sidebar.collapsed .side-link {
+  justify-content: center;
+  padding: 10px;
 }
 
 /* --- HOVER --- */
 .side-link:hover {
   background: #f3f3ff;
   color: #6a3df0;
+}
+
+.sidebar:not(.collapsed) .side-link:hover {
   padding-left: 14px;
 }
 
@@ -76,12 +151,10 @@
   background: #e9e4ff;
   color: #6a3df0;
   font-weight: 600;
-
-  border: none !important;   /* 🔥 THIS removes the outline */
+  border: none !important;
   outline: none !important;
   box-shadow: none !important;
 }
-
 
 .side-link.active .icon {
   color: #6a3df0;
@@ -89,11 +162,37 @@
 
 /* --- BOTTOM SECTION WRAPPER --- */
 .side-bottom {
-  width: 100%;               /* <-- make it span full sidebar width */
+  width: 100%;
   margin-top: auto;
   padding-top: 25px;
-  border-top: 1px solid #ddd;  /* longer visible line */
+  border-top: 1px solid #ddd;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* --- TOOLTIP FOR COLLAPSED STATE --- */
+.sidebar.collapsed .side-link {
+  position: relative;
+}
+
+.sidebar.collapsed .side-link::after {
+  content: attr(title);
+  position: absolute;
+  left: 100%;
+  margin-left: 12px;
+  padding: 6px 12px;
+  background: #333;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 1001;
+}
+
+.sidebar.collapsed .side-link:hover::after {
+  opacity: 1;
 }

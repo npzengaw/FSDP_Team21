@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import {
   FiHome,
   FiGrid,
@@ -6,12 +7,24 @@ import {
   FiUser,
   FiSettings,
   FiCalendar,
+  FiChevronLeft,
+  FiChevronRight,
 } from "react-icons/fi";
 import "./Sidebar.css";
 
 export default function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Add/remove body class when sidebar collapses/expands
+  useEffect(() => {
+    if (isCollapsed) {
+      document.body.classList.add('sidebar-collapsed');
+    } else {
+      document.body.classList.remove('sidebar-collapsed');
+    }
+  }, [isCollapsed]);
 
   const getOrgIdFromPath = () => {
     const match = pathname.match(/^\/org\/([^/]+)/);
@@ -50,19 +63,30 @@ export default function Sidebar() {
   const isActive = (path) => pathname === path || pathname.startsWith(path + "/");
 
   return (
-    <div className="sidebar">
-      <h3 className="side-title">KIRO</h3>
+    <div className={`sidebar ${isCollapsed ? "collapsed" : ""}`}>
+      <div className="sidebar-header">
+        <h3 className="side-title">{!isCollapsed && "KIRO"}</h3>
+        <button
+          type="button"
+          className="collapse-btn"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isCollapsed ? <FiChevronRight /> : <FiChevronLeft />}
+        </button>
+      </div>
 
       <div className="side-links">
         {/* ✅ Organisation FIRST */}
         <Link
           to="/organisations"
           className={`side-link ${isActive("/organisations") ? "active" : ""}`}
+          title={isCollapsed ? "Organisation" : ""}
         >
           <span className="icon">
             <FiHome />
           </span>
-          Organisation
+          {!isCollapsed && <span className="link-text">Organisation</span>}
         </Link>
 
         {/* ✅ Kanban */}
@@ -70,11 +94,12 @@ export default function Sidebar() {
           type="button"
           onClick={goKanban}
           className={`side-link ${isKanbanActive ? "active" : ""}`}
+          title={isCollapsed ? "Kanban Board" : ""}
         >
           <span className="icon">
             <FiGrid />
           </span>
-          Kanban Board
+          {!isCollapsed && <span className="link-text">Kanban Board</span>}
         </button>
 
         {/* ✅ WorkItems (NEW, org-aware) */}
@@ -82,11 +107,12 @@ export default function Sidebar() {
           type="button"
           onClick={goWorkItems}
           className={`side-link ${isWorkItemsActive ? "active" : ""}`}
+          title={isCollapsed ? "WorkItems" : ""}
         >
           <span className="icon">
             <FiGrid />
           </span>
-          WorkItems
+          {!isCollapsed && <span className="link-text">WorkItems</span>}
         </button>
 
         {/* ✅ Rest */}
@@ -97,9 +123,10 @@ export default function Sidebar() {
               key={l.to}
               to={l.to}
               className={`side-link ${isActive(l.to) ? "active" : ""}`}
+              title={isCollapsed ? l.label : ""}
             >
               <span className="icon">{l.icon}</span>
-              {l.label}
+              {!isCollapsed && <span className="link-text">{l.label}</span>}
             </Link>
           ))}
       </div>
@@ -108,21 +135,23 @@ export default function Sidebar() {
         <Link
           className={`side-link ${isActive("/profile") ? "active" : ""}`}
           to="/profile"
+          title={isCollapsed ? "Profile" : ""}
         >
           <span className="icon">
             <FiUser />
           </span>
-          Profile
+          {!isCollapsed && <span className="link-text">Profile</span>}
         </Link>
 
         <Link
           className={`side-link ${isActive("/settings") ? "active" : ""}`}
           to="/settings"
+          title={isCollapsed ? "Settings" : ""}
         >
           <span className="icon">
             <FiSettings />
           </span>
-          Settings
+          {!isCollapsed && <span className="link-text">Settings</span>}
         </Link>
       </div>
     </div>
