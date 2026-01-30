@@ -196,3 +196,6 @@
 .sidebar.collapsed .side-link:hover::after {
   opacity: 1;
 }
+.sidebar {
+  box-shadow: 2px 0 14px rgba(15, 23, 42, 0.06);
+}

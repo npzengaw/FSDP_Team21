@@ -5,9 +5,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import Lottie from "lottie-react";
 import boardAnim from "./assets/lottie/board.json";
-import deleteAnim from "./assets/lottie/delete.json"; 
+import deleteAnim from "./assets/lottie/delete.json";
 import emptySpaceImg from "./assets/EmptySpace.jpg";
-
+import queuedAnim from "./assets/lottie/queued.json";
 
 
 function KanbanBoard({ socket, user, profile }) {
@@ -17,14 +17,13 @@ function KanbanBoard({ socket, user, profile }) {
   const uid = user?.id;
   const isOrgMode = !!orgId;
 
-    // ✅ remember current org so /home and sidebar can route correctly
+  // ✅ remember current org so /home and sidebar can route correctly
   useEffect(() => {
     if (isOrgMode && orgId) {
       localStorage.setItem("activeOrgId", orgId);
     }
   }, [isOrgMode, orgId]);
 
-  
   const [tasks, setTasks] = useState([]);
   const [columns, setColumns] = useState({ todo: [], progress: [], done: [] });
 
@@ -50,79 +49,79 @@ function KanbanBoard({ socket, user, profile }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-
   // Organisation name
   const [orgName, setOrgName] = useState("");
 
   //Profile icon
 
-const todayLabel = useMemo(() => {
-  return new Date().toLocaleDateString(undefined, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}, []);
+  const todayLabel = useMemo(() => {
+    return new Date().toLocaleDateString(undefined, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }, []);
 
-const displayName =
-  profile?.username ||
-  user?.user_metadata?.full_name ||
-  user?.email ||
-  "User";
+  const displayName =
+    profile?.username ||
+    user?.user_metadata?.full_name ||
+    user?.email ||
+    "User";
 
-const initial = String(displayName).trim().charAt(0).toUpperCase() || "U";
+  const initial = String(displayName).trim().charAt(0).toUpperCase() || "U";
+  const queuedAnimData = queuedAnim?.default || queuedAnim;
 
-//Empty Column Image
-const getTypeClass = (type) => {
-  const colors = ["t-red","t-orange","t-green","t-teal","t-blue","t-indigo","t-purple","t-pink"];
-  const s = String(type || "").toLowerCase().trim();
-  if (!s) return "";
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
-  return colors[hash % colors.length];
-};
+  //Empty Column Image
+  const getTypeClass = (type) => {
+    const colors = ["t-red", "t-orange", "t-green", "t-teal", "t-blue", "t-indigo", "t-purple", "t-pink"];
+    const s = String(type || "").toLowerCase().trim();
+    if (!s) return "";
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+    return colors[hash % colors.length];
+  };
 
   //Organisation Header for Board
   useEffect(() => {
-  const fetchOrgName = async () => {
-    if (!isOrgMode || !orgId) return;
+    const fetchOrgName = async () => {
+      if (!isOrgMode || !orgId) return;
 
-    const { data, error } = await supabase
-      .from("organisations")   // <-- change if your table name differs
-      .select("name")          // <-- change if your column differs
-      .eq("id", orgId)
-      .single();
+      const { data, error } = await supabase
+        .from("organisations") // <-- change if your table name differs
+        .select("name") // <-- change if your column differs
+        .eq("id", orgId)
+        .single();
 
-    if (error) {
-      console.error("Fetch org name error:", error);
-      setOrgName("Company Projects");
-      return;
-    }
+      if (error) {
+        console.error("Fetch org name error:", error);
+        setOrgName("Company Projects");
+        return;
+      }
 
-    setOrgName(data?.name || "Company Projects");
+      setOrgName(data?.name || "Company Projects");
+    };
+
+    fetchOrgName();
+  }, [isOrgMode, orgId]);
+
+  const formatDue = (dateStr) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
   };
 
-  fetchOrgName();
-}, [isOrgMode, orgId]);
+  const priorityLabel = (p) => {
+    const v = String(p || "").toLowerCase();
+    if (!v) return "—";
+    return v.charAt(0).toUpperCase() + v.slice(1);
+  };
 
-const formatDue = (dateStr) => {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
-};
-
-const priorityLabel = (p) => {
-  const v = String(p || "").toLowerCase();
-  if (!v) return "—";
-  return v.charAt(0).toUpperCase() + v.slice(1);
-};
-
-const typeLabel = (t) => {
-  const v = String(t || "").toLowerCase();
-  if (!v) return "—";
-  return v.charAt(0).toUpperCase() + v.slice(1);
-};
+  const typeLabel = (t) => {
+    const v = String(t || "").toLowerCase();
+    if (!v) return "—";
+    return v.charAt(0).toUpperCase() + v.slice(1);
+  };
 
   // ---------- LOAD AI MODELS (dropdown) ----------
   useEffect(() => {
@@ -168,13 +167,13 @@ const typeLabel = (t) => {
   }, [socket]);
 
   // ----------- LOAD TASKS + REALTIME -----------
-useEffect(() => {
-  if (!uid) return;
+  useEffect(() => {
+    if (!uid) return;
 
-  const fetchTasks = async () => {
-    let q = supabase
-      .from("tasks")
-      .select(`
+    const fetchTasks = async () => {
+      let q = supabase
+        .from("tasks")
+        .select(`
         id,
         title,
         description,
@@ -193,84 +192,80 @@ useEffect(() => {
         ai_output,
         ai_agent,
         ai_status,
-        profiles:user_id (username)
+        profiles:user_id (username),
+        assignee:assigned_to (username)
       `)
-      .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false });
 
-    if (isOrgMode) {
-      // ✅ personal tasks (mine) + org tasks assigned to me (ONLY this org)
-      q = q.or(
-        `and(organisation_id.is.null,user_id.eq.${uid}),and(organisation_id.eq.${orgId},assigned_to.eq.${uid})`
-      );
-    } else {
-      // ✅ personal page only: ONLY my personal tasks
-      q = q
-        .is("organisation_id", null)
-        .eq("user_id", uid);
-    }
+      if (isOrgMode) {
+        // ✅ personal tasks (mine) + org tasks assigned to me (ONLY this org)
+        q = q.or(
+          `and(organisation_id.is.null,user_id.eq.${uid}),and(organisation_id.eq.${orgId},assigned_to.eq.${uid})`
+        );
+      } else {
+        // ✅ personal page only: ONLY my personal tasks
+        q = q
+          .is("organisation_id", null)
+          .eq("user_id", uid);
+      }
 
-    const { data, error } = await q;
-    if (error) console.error("Kanban fetchTasks error:", error);
-    setTasks(Array.isArray(data) ? data : []);
-  };
+      const { data, error } = await q;
+      if (error) console.error("Kanban fetchTasks error:", error);
+      setTasks(Array.isArray(data) ? data : []);
+    };
 
-  fetchTasks();
+    fetchTasks();
 
-  const channel = supabase
-    .channel(`kanban_tasks_${uid}_${isOrgMode ? orgId : "personal"}`)
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "tasks" },
-      fetchTasks
-    )
-    .subscribe();
+    const channel = supabase
+      .channel(`kanban_tasks_${uid}_${isOrgMode ? orgId : "personal"}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks" },
+        fetchTasks
+      )
+      .subscribe();
 
-  return () => supabase.removeChannel(channel);
-}, [uid, isOrgMode, orgId]);
+    return () => supabase.removeChannel(channel);
+  }, [uid, isOrgMode, orgId]);
 
+  // ✅ ADD THIS RIGHT HERE
+  const myTasks = useMemo(() => {
+    if (!uid) return [];
+    return tasks.filter((t) => t.user_id === uid || t.assigned_to === uid);
+  }, [tasks, uid]);
+  const filteredTasks = useMemo(() => {
+    const q = String(searchTerm || "").trim().toLowerCase();
+    if (!q) return myTasks;
 
-// ✅ ADD THIS RIGHT HERE
-const myTasks = useMemo(() => {
-  if (!uid) return [];
-  return tasks.filter((t) => t.user_id === uid || t.assigned_to === uid);
-}, [tasks, uid]);  
-const filteredTasks = useMemo(() => {
-  const q = String(searchTerm || "").trim().toLowerCase();
-  if (!q) return myTasks;
-
-  return (myTasks || []).filter((t) => {
-    const title = String(t.title || "").toLowerCase();
-    const desc = String(t.description || "").toLowerCase();
-    return title.includes(q) || desc.includes(q);
-  });
-}, [myTasks, searchTerm]);
-
-
-const searchResults = useMemo(() => {
-  const q = String(searchTerm || "").trim().toLowerCase();
-  if (!q) return [];
-
-  return (myTasks || [])
-    .filter((t) => {
+    return (myTasks || []).filter((t) => {
       const title = String(t.title || "").toLowerCase();
       const desc = String(t.description || "").toLowerCase();
       return title.includes(q) || desc.includes(q);
-    })
-    .slice(0, 8);
-}, [myTasks, searchTerm]);
+    });
+  }, [myTasks, searchTerm]);
 
+  const searchResults = useMemo(() => {
+    const q = String(searchTerm || "").trim().toLowerCase();
+    if (!q) return [];
 
+    return (myTasks || [])
+      .filter((t) => {
+        const title = String(t.title || "").toLowerCase();
+        const desc = String(t.description || "").toLowerCase();
+        return title.includes(q) || desc.includes(q);
+      })
+      .slice(0, 8);
+  }, [myTasks, searchTerm]);
 
   // Build columns
- useEffect(() => {
-  const safe = Array.isArray(filteredTasks) ? filteredTasks : [];
-  setColumns({
-    todo: safe.filter((t) => t.status === "todo"),
-    progress: safe.filter((t) => t.status === "progress"),
-    done: safe.filter((t) => t.status === "done"),
-  });
-}, [filteredTasks]);
-
+  useEffect(() => {
+    const safe = Array.isArray(filteredTasks) ? filteredTasks : [];
+    setColumns({
+      todo: safe.filter((t) => t.status === "todo"),
+      progress: safe.filter((t) => t.status === "progress"),
+      done: safe.filter((t) => t.status === "done"),
+    });
+  }, [filteredTasks]);
 
   // DRAG & DROP (manual)
   const onDragEnd = async (result) => {
@@ -305,25 +300,23 @@ const searchResults = useMemo(() => {
       .eq("id", moved.id)
       .or(`user_id.eq.${uid},assigned_to.eq.${uid}`);
 
-
     if (error) console.error("Kanban move update error:", error);
   };
 
   const deleteTask = async () => {
-  if (!deleteTarget?.id) return;
+    if (!deleteTarget?.id) return;
 
-  const { error } = await supabase
-    .from("tasks")
-    .delete()
-    .eq("id", deleteTarget.id)
-    .or(`user_id.eq.${uid},assigned_to.eq.${uid}`);
+    const { error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", deleteTarget.id)
+      .or(`user_id.eq.${uid},assigned_to.eq.${uid}`);
 
-  if (error) console.error("Kanban delete error:", error);
+    if (error) console.error("Kanban delete error:", error);
 
-  setShowDeleteModal(false);
-  setDeleteTarget(null);
-};
-
+    setShowDeleteModal(false);
+    setDeleteTarget(null);
+  };
 
   // TODO: CLICK -> PROMPT POPUP
   const openPromptPopup = (task) => {
@@ -373,7 +366,6 @@ const searchResults = useMemo(() => {
       .eq("id", taskId)
       .or(`user_id.eq.${uid},assigned_to.eq.${uid}`);
 
-
     if (error) {
       console.error("Optimistic progress update error:", error);
       return;
@@ -407,7 +399,6 @@ const searchResults = useMemo(() => {
       .eq("id", taskId)
       .or(`user_id.eq.${uid},assigned_to.eq.${uid}`);
 
-
     if (error) console.error("Reset to todo error:", error);
     setSelectedDoneTask(null);
   };
@@ -419,175 +410,165 @@ const searchResults = useMemo(() => {
     if (updated) setSelectedDoneTask(updated);
   }, [tasks, selectedDoneTask]);
   const jumpToTask = (taskId) => {
-  const el = taskRefs.current[taskId];
-  if (!el) return;
+    const el = taskRefs.current[taskId];
+    if (!el) return;
 
-  el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
 
-  el.classList.add("task-flash");
-  setTimeout(() => el.classList.remove("task-flash"), 900);
+    el.classList.add("task-flash");
+    setTimeout(() => el.classList.remove("task-flash"), 900);
 
-  setSearchOpen(false);
-  setSearchTerm(""); // ✅ add this line
-};
+    setSearchOpen(false);
+    setSearchTerm(""); // ✅ add this line
+  };
 
-useEffect(() => {
-  if (!searchOpen) return;
+  useEffect(() => {
+    if (!searchOpen) return;
 
-  const onDocClick = () => setSearchOpen(false);
-  document.addEventListener("click", onDocClick);
+    const onDocClick = () => setSearchOpen(false);
+    document.addEventListener("click", onDocClick);
 
-  return () => document.removeEventListener("click", onDocClick);
-}, [searchOpen]);
+    return () => document.removeEventListener("click", onDocClick);
+  }, [searchOpen]);
 
-const isOverdue = (dateStr) => {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return false;
+  const isOverdue = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return false;
 
-  const now = new Date();
-  // compare by date (ignore time)
-  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return end < today;
-};
-
-
-
+    const now = new Date();
+    // compare by date (ignore time)
+    const end = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return end < today;
+  };
 
   return (
     <div className="kanban-container">
       <div className="main-content">
         {/* Header */}
         <div className="header">
-  <div className="header-left">
-    <div className="header-title">
-      <span className="page-title">
-        {isOrgMode ? `${orgName || "Company Projects"} Board` : "Personal Board"}
-      </span>
+          <div className="header-left">
+            <div className="header-title">
+              <span className="page-title">
+                {isOrgMode ? `${orgName || "Company Projects"} Board` : "Personal Board"}
+              </span>
 
-      <span className="page-icon">
-        <Lottie animationData={boardAnim} loop autoplay />
-      </span>
-    </div>
-  </div>
+              <span className="page-icon">
+                <Lottie animationData={boardAnim} loop autoplay />
+              </span>
+            </div>
+          </div>
 
-  <div className="header-right">
-  {/* Search icon button */}
-  <div className="header-action" onClick={(e) => e.stopPropagation()}>
-    <button
-      type="button"
-      className="icon-btn"
-      aria-label="Search tasks"
-      onClick={() => setSearchOpen((v) => !v)}
-    >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M21 21l-4.3-4.3m1.8-5.2a7 7 0 11-14 0 7 7 0 0114 0z"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      </svg>
-    </button>
+          <div className="header-right">
+            {/* Search icon button */}
+            <div className="header-action" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Search tasks"
+                onClick={() => setSearchOpen((v) => !v)}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M21 21l-4.3-4.3m1.8-5.2a7 7 0 11-14 0 7 7 0 0114 0z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
 
-    {/* Popover search (only when clicked) */}
-    {searchOpen && (
-      <div className="search-popover" onClick={(e) => e.stopPropagation()}>
-        <div className="search-popover-header">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M21 21l-4.3-4.3m1.8-5.2a7 7 0 11-14 0 7 7 0 0114 0z"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
+              {/* Popover search (only when clicked) */}
+              {searchOpen && (
+                <div className="search-popover" onClick={(e) => e.stopPropagation()}>
+                  <div className="search-popover-header">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M21 21l-4.3-4.3m1.8-5.2a7 7 0 11-14 0 7 7 0 0114 0z"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
 
-          <input
-            autoFocus
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search tasks"
-            aria-label="Search tasks"
-          />
+                    <input
+                      autoFocus
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search tasks"
+                      aria-label="Search tasks"
+                    />
 
-          <button
-            type="button"
-            className="icon-btn subtle"
-            aria-label="Close search"
-            onClick={() => {
-              setSearchOpen(false);
-              setSearchTerm("");
-            }}
-          >
-            ✕
-          </button>
+                    <button
+                      type="button"
+                      className="icon-btn subtle"
+                      aria-label="Close search"
+                      onClick={() => {
+                        setSearchOpen(false);
+                        setSearchTerm("");
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="search-popover-body">
+                    <div className="search-popover-body">
+                      {!searchTerm.trim() ? (
+                        <div className="search-hint">Type to search by task title or description…</div>
+                      ) : searchResults.length === 0 ? (
+                        <div className="search-empty-state">
+                          <div className="empty-illus" aria-hidden="true">
+                            {/* simple inline SVG illustration */}
+                            <svg viewBox="0 0 120 120" width="92" height="92" fill="none">
+                              <circle cx="58" cy="58" r="34" stroke="currentColor" strokeWidth="5" opacity="0.35" />
+                              <path
+                                d="M83 83l20 20"
+                                stroke="currentColor"
+                                strokeWidth="6"
+                                strokeLinecap="round"
+                                opacity="0.35"
+                              />
+                              <circle cx="30" cy="28" r="4" fill="currentColor" opacity="0.18" />
+                              <circle cx="96" cy="36" r="6" fill="currentColor" opacity="0.12" />
+                              <circle cx="20" cy="76" r="6" fill="currentColor" opacity="0.10" />
+                            </svg>
+                          </div>
+
+                          <div className="empty-title">No Result Found</div>
+                          <div className="empty-subtitle">No results found. Please try again.</div>
+                        </div>
+                      ) : (
+                        <div className="search-results"></div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Date (icon + text, same sizing) */}
+            <div className="header-action">
+              <span className="icon-inline" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M7 3v2m10-2v2M4 8h16M6 5h12a2 2 0 012 2v13a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+              <span className="date-text">{todayLabel}</span>
+            </div>
+
+            {/* Avatar */}
+            <div className="avatar-circle" title={displayName}>
+              {initial}
+            </div>
+          </div>
         </div>
-
-        <div className="search-popover-body">
-          <div className="search-popover-body">
-  {!searchTerm.trim() ? (
-    <div className="search-hint">Type to search by task title or description…</div>
-  ) : searchResults.length === 0 ? (
-    <div className="search-empty-state">
-      <div className="empty-illus" aria-hidden="true">
-        {/* simple inline SVG illustration */}
-        <svg viewBox="0 0 120 120" width="92" height="92" fill="none">
-          <circle cx="58" cy="58" r="34" stroke="currentColor" strokeWidth="5" opacity="0.35" />
-          <path
-            d="M83 83l20 20"
-            stroke="currentColor"
-            strokeWidth="6"
-            strokeLinecap="round"
-            opacity="0.35"
-          />
-          <circle cx="30" cy="28" r="4" fill="currentColor" opacity="0.18" />
-          <circle cx="96" cy="36" r="6" fill="currentColor" opacity="0.12" />
-          <circle cx="20" cy="76" r="6" fill="currentColor" opacity="0.10" />
-        </svg>
-      </div>
-
-      <div className="empty-title">No Result Found</div>
-      <div className="empty-subtitle">No results found. Please try again.</div>
-    </div>
-  ) : (
-    <div className="search-results">
-      
-    </div>
-  )}
-</div>
-
-        </div>
-      </div>
-    )}
-  </div>
-
-  {/* Date (icon + text, same sizing) */}
-  <div className="header-action">
-    <span className="icon-inline" aria-hidden="true">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M7 3v2m10-2v2M4 8h16M6 5h12a2 2 0 012 2v13a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      </svg>
-    </span>
-    <span className="date-text">{todayLabel}</span>
-  </div>
-
-  {/* Avatar */}
-  <div className="avatar-circle" title={displayName}>
-    {initial}
-  </div>
-</div>
-
-</div>
-
-
-
 
         <div className="board">
           <DragDropContext onDragEnd={onDragEnd}>
@@ -606,125 +587,138 @@ const isOverdue = (dateStr) => {
                     </div>
 
                     <div className="tasks-list">
-  {list.length === 0 ? (
-    <div className="empty-column">
-      <img className="empty-column-img" src={emptySpaceImg} alt="No tasks" />
-      <div className="empty-column-text">
-        {colId === "todo" && "No tasks to start yet."}
-        {colId === "progress" && "Nothing in progress right now."}
-        {colId === "done" && "No completed tasks yet."}
+                      {list.length === 0 ? (
+                        <div className="empty-column">
+                          <img className="empty-column-img" src={emptySpaceImg} alt="No tasks" />
+                          <div className="empty-column-text">
+                            {colId === "todo" && "No tasks to start yet."}
+                            {colId === "progress" && "Nothing in progress right now."}
+                            {colId === "done" && "No completed tasks yet."}
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {list.map((task, index) => {
+                            const assigneeObj = Array.isArray(task.assignee) ? task.assignee[0] : task.assignee;
+                            const assigneeName = assigneeObj?.username || "";
+                            const assigneeInitial = assigneeName
+                              ? String(assigneeName).trim().charAt(0).toUpperCase()
+                              : "";
+
+                            return (
+                              <Draggable key={task.id} draggableId={String(task.id)} index={index}>
+                                {(provided) => (
+                                  <div
+                                    className={`task-card priority-${String(task.priority || "").toLowerCase()}`}
+                                    ref={(el) => {
+                                      provided.innerRef(el);
+                                      taskRefs.current[task.id] = el;
+                                    }}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    onClick={() => {
+                                      if (task.status === "todo") openPromptPopup(task);
+                                      if (task.status === "done") openDonePopup(task);
+                                    }}
+                                    style={{
+                                      cursor: task.status === "progress" ? "default" : "pointer",
+                                      opacity: task.ai_status === "thinking" ? 0.9 : 1,
+                                    }}
+                                  >
+                                    <button
+                                      className="task-menu"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeleteTarget(task);
+                                        setShowDeleteModal(true);
+                                      }}
+                                      type="button"
+                                    >
+                                      ✕
+                                    </button>
+
+                                    {/* TOP TAGS (priority + type beside each other) */}
+                                    <div className="task-top">
+                                      <span className={`pill priority ${String(task.priority || "").toLowerCase()}`}>
+                                        {priorityLabel(task.priority)}
+                                      </span>
+
+                                      {String(task.type || "").trim() ? (
+                                        <span className={`pill type ${getTypeClass(task.type)}`}>
+                                          {typeLabel(task.type)}
+                                        </span>
+                                      ) : null}
+                                    </div>
+
+                                    {/* TITLE */}
+                                    <div className="task-main">
+  <div className="task-name" title={task.title}>
+    {task.title}
+  </div>
+
+  {/* ✅ TODO hint stays */}
+  {task.status === "todo" && (
+    <div className="task-hint">Click to prompt AI →</div>
+  )}
+
+  {/* ✅ queued + thinking row */}
+  {(task.ai_status === "queued" || task.ai_status === "thinking") && (
+    <div className="ai-loading-row">
+      <div className="queued-lottie">
+        <Lottie animationData={queuedAnimData} loop autoplay />
       </div>
+      <span className="task-hint subtle">AI generating...</span>
     </div>
-  ) : (
-    <>
-      {list.map((task, index) => (
-        <Draggable key={task.id} draggableId={String(task.id)} index={index}>
-          {(provided) => (
-            <div
-              className={`task-card priority-${String(task.priority || "").toLowerCase()}`}
-              ref={(el) => {
-                provided.innerRef(el);
-                taskRefs.current[task.id] = el;
-              }}
-              {...provided.draggableProps}
-              {...provided.dragHandleProps}
-              onClick={() => {
-                if (task.status === "todo") openPromptPopup(task);
-                if (task.status === "done") openDonePopup(task);
-              }}
-              style={{
-                cursor: task.status === "progress" ? "default" : "pointer",
-                opacity: task.ai_status === "thinking" ? 0.9 : 1,
-              }}
-            >
-              <button
-                className="task-menu"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDeleteTarget(task);
-                  setShowDeleteModal(true);
-                }}
-                type="button"
-              >
-                ✕
-              </button>
-
-              {/* TOP TAGS (priority + type beside each other) */}
-              <div className="task-top">
-                <span className={`pill priority ${String(task.priority || "").toLowerCase()}`}>
-                  {priorityLabel(task.priority)}
-                </span>
-
-                <span className={`pill type ${getTypeClass(task.type)}`}>
-                  {typeLabel(task.type)}
-                </span>
-              </div>
-
-              {/* TITLE */}
-              <div className="task-name" title={task.title}>
-                {task.title}
-              </div>
-
-              {/* ✅ KEEP THIS EXACT LOGIC */}
-              {task.status === "todo" && <div className="task-hint">Click to prompt AI →</div>}
-              {task.ai_status === "queued" && <div className="task-hint subtle">Queued...</div>}
-              {task.ai_status === "thinking" && <div className="task-hint subtle">AI generating...</div>}
-
-              <div className="task-divider" />
-
-              {/* BOTTOM ROW: avatars left, due date right */}
-              <div className="task-bottom">
-                <div className="avatar-stack">
-                  <div
-                    className="avatar"
-                    title={`Assigned by: ${task.profiles?.username || profile?.username || "Unknown"}`}
-                  >
-                    {String(task.profiles?.username || profile?.username || "U")
-                      .trim()
-                      .charAt(0)
-                      .toUpperCase()}
-                  </div>
-
-                  <div
-                    className="avatar alt"
-                    title={`Assigned to: ${task.assigned_to ? "You" : "—"}`}
-                  >
-                    {task.assigned_to ? "Y" : "—"}
-                  </div>
-                </div>
-
-                {/* only show date if end_date exists */}
-                {task.end_date ? (
-                  <div className={`due-wrap ${isOverdue(task.end_date) ? "overdue" : ""}`}>
-                    <svg
-                      className="due-icon"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M7 3v2m10-2v2M4 8h16M6 5h12a2 2 0 012 2v13a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-
-                    <span className="due-date">{formatDue(task.end_date)}</span>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )}
-        </Draggable>
-      ))}
-      {provided.placeholder}
-    </>
   )}
 </div>
 
+
+
+
+                                    <div className="task-divider" />
+
+                                    {/* BOTTOM ROW: avatars left, due date right */}
+                                    <div className="task-bottom">
+                                      <div className="avatar-stack">
+                                        {task.assigned_to && assigneeInitial ? (
+                                          <div className="avatar alt" title={`Assigned to: ${assigneeName}`}>
+                                            {assigneeInitial}
+                                          </div>
+                                        ) : null}
+                                      </div>
+
+                                      {/* only show date if end_date exists */}
+                                      {task.end_date ? (
+                                        <div className={`due-wrap ${isOverdue(task.end_date) ? "overdue" : ""}`}>
+                                          <svg
+                                            className="due-icon"
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            aria-hidden="true"
+                                          >
+                                            <path
+                                              d="M7 3v2m10-2v2M4 8h16M6 5h12a2 2 0 012 2v13a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z"
+                                              stroke="currentColor"
+                                              strokeWidth="2"
+                                              strokeLinecap="round"
+                                            />
+                                          </svg>
+
+                                          <span className="due-date">{formatDue(task.end_date)}</span>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                )}
+                              </Draggable>
+                            );
+                          })}
+                          {provided.placeholder}
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
               </Droppable>
@@ -829,11 +823,7 @@ const isOverdue = (dateStr) => {
             </div>
 
             <div className="modal-footer">
-              <button
-                className="btn-primary"
-                onClick={() => resetDoneToTodo(selectedDoneTask.id)}
-                type="button"
-              >
+              <button className="btn-primary" onClick={() => resetDoneToTodo(selectedDoneTask.id)} type="button">
                 Reset to TODO
               </button>
             </div>
@@ -842,42 +832,39 @@ const isOverdue = (dateStr) => {
       )}
       {/* DELETE CONFIRMATION MODAL */}
       {showDeleteModal && deleteTarget && (
-  <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-    <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
-      {/* put your lottie delete anim here */}
-      <div className="delete-anim">
-        <Lottie animationData={deleteAnim} loop={false} autoplay />
-      </div>
+        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+          <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
+            {/* put your lottie delete anim here */}
+            <div className="delete-anim">
+              <Lottie animationData={deleteAnim} loop={false} autoplay />
+            </div>
 
-      <h2 className="delete-title">Delete task</h2>
-      <p className="delete-desc">
-        Are you sure you want to delete <strong>{deleteTarget.title}</strong>?
-        <br />
-        This action cannot be undone.
-      </p>
+            <h2 className="delete-title">Delete task</h2>
+            <p className="delete-desc">
+              Are you sure you want to delete <strong>{deleteTarget.title}</strong>?
+              <br />
+              This action cannot be undone.
+            </p>
 
-      <div className="delete-actions">
-        <button
-          className="btn-cancel"
-          type="button"
-          onClick={() => {
-            setShowDeleteModal(false);
-            setDeleteTarget(null);
-          }}
-        >
-          Cancel
-        </button>
+            <div className="delete-actions">
+              <button
+                className="btn-cancel"
+                type="button"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteTarget(null);
+                }}
+              >
+                Cancel
+              </button>
 
-        <button className="btn-danger" type="button" onClick={deleteTask}>
-          Delete
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-
-      
+              <button className="btn-danger" type="button" onClick={deleteTask}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

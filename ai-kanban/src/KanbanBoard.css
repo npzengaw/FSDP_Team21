@@ -2358,8 +2358,78 @@ body {
   50%  { transform: translate(18px, 12px) scale(1.03); }
   100% { transform: translate(-6px, 16px) scale(1.02); }
 }
+.queued-with-anim {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 
+.queued-with-anim {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
+.queued-lottie {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.task-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* tight spacing like your screenshot */
+}
 
+.ai-loading-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #9aa4b2;
+}
 
+.queued-lottie {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
+.task-hint {
+  font-size: 13px;
+  line-height: 1;
+}
+/* ===== Task count — subtle purple polish ===== */
+.task-count{
+  min-width: 26px;
+  height: 26px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  color: #6a3df0;                    /* muted purple */
+  background: rgba(106, 61, 240, 0.10);
+
+  border-radius: 8px;
+  border: 1px solid rgba(106, 61, 240, 0.18);
+
+  box-shadow:
+    0 1px 3px rgba(106, 61, 240, 0.18),
+    0 0 0 1px rgba(106, 61, 240, 0.04);
+
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+
+/* very gentle hover (almost unnoticeable) */
+.column:hover .task-count{
+  box-shadow:
+    0 2px 6px rgba(106, 61, 240, 0.24),
+    0 0 0 1px rgba(106, 61, 240, 0.08);
+}
