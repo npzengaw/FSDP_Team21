@@ -1,5 +1,4 @@
-
-// server.js (CommonJS)
+// server.js (CommonJS) ✅ COPY-PASTE FULL FILE
 require("dotenv").config();
 
 const express = require("express");
@@ -7,44 +6,34 @@ const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const { createClient } = require("@supabase/supabase-js");
-const { handleAIChat } = require("../src/aiChat.js");
+const { handleAIChat } = require("./aiChat.js"); // ✅ server folder file
 
-
-// ✅ Node 18+ (including Node 24) has global fetch built-in.
-// No node-fetch needed.
-
+// ====================== ALLOWED ORIGINS ======================
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+
+  // ✅ put your real Vercel production domain here if you have one
+  // e.g. "https://fsdp-team21.vercel.app"
   "https://YOUR_PROD_DOMAIN.vercel.app",
 ]);
 
-const app = express();
-app.use(express.json());
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-);
-
-app.get("/health", (_, res) => res.send("ok"));
-
-
-const server = http.createServer(app);
-
-
 const isAllowedOrigin = (origin) => {
-  if (!origin) return true; // allow server-to-server / curl
+  if (!origin) return true; // allow server-to-server / curl / postman
   if (ALLOWED_ORIGINS.has(origin)) return true;
 
-  // allow all Vercel preview deployments
+  // ✅ allow any vercel preview deployment
   if (/^https:\/\/.*\.vercel\.app$/.test(origin)) return true;
 
   return false;
 };
 
+// ====================== EXPRESS ======================
+const app = express();
+
+// ✅ IMPORTANT: CORS MUST BE BEFORE ROUTES
 app.use(
   cors({
     origin: (origin, cb) => {
@@ -56,8 +45,23 @@ app.use(
   })
 );
 
+app.use(express.json());
+
+// Health check
+app.get("/health", (_, res) => res.send("ok"));
+
+// ✅ AI chat endpoint
+app.post("/api/ai/chat", handleAIChat);
+
+// ====================== SUPABASE ======================
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
 // ====================== SERVER + SOCKET ======================
+const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
     origin: (origin, cb) => {
@@ -68,9 +72,8 @@ const io = new Server(server, {
     credentials: true,
   },
   transports: ["polling", "websocket"],
-  maxHttpBufferSize: 5e6,
+  maxHttpBufferSize: 5e6, // 5MB
 });
-
 
 // ====================== AI MODELS ======================
 const ALLOWED_MODELS = [
@@ -144,25 +147,27 @@ const taskSelect = `
 async function getPersonalTasks(userId) {
   if (!userId) return [];
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("tasks")
     .select(taskSelect)
     .or(`and(organisation_id.is.null,user_id.eq.${userId}),assigned_to.eq.${userId}`)
     .order("created_at", { ascending: false });
 
+  if (error) console.error("getPersonalTasks error:", error);
   return data || [];
 }
 
 async function getOrgWorkItems(orgId) {
   if (!orgId) return [];
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("tasks")
     .select(taskSelect)
     .eq("organisation_id", orgId)
     .eq("is_main_board", true)
     .order("created_at", { ascending: false });
 
+  if (error) console.error("getOrgWorkItems error:", error);
   return data || [];
 }
 
@@ -202,26 +207,6 @@ supabase
 io.on("connection", async (socket) => {
   const { userId, orgId } = socket.handshake.query;
 
-  socket.on("rejoin", async ({ userId: incomingUserId, orgId: nextOrgId }) => {
-  const currentUserId = String(socket.handshake.query.userId || "");
-
-  if (!incomingUserId || String(incomingUserId) !== currentUserId) return;
-
-  // leave any previous org rooms
-  for (const room of socket.rooms) {
-    if (typeof room === "string" && room.startsWith("org:")) {
-      socket.leave(room);
-    }
-  }
-
-  // join new org room (or none)
-  if (nextOrgId) {
-    socket.join(`org:${nextOrgId}`);
-    socket.emit("loadOrgTasks", await getOrgWorkItems(nextOrgId));
-  }
-});
-
-
   if (!userId) {
     socket.disconnect(true);
     return;
@@ -235,22 +220,44 @@ io.on("connection", async (socket) => {
     socket.emit("loadOrgTasks", await getOrgWorkItems(orgId));
   }
 
+  // ✅ allow client to switch org without reconnecting
+  socket.on("rejoin", async ({ userId: incomingUserId, orgId: nextOrgId }) => {
+    const currentUserId = String(socket.handshake.query.userId || "");
+    if (!incomingUserId || String(incomingUserId) !== currentUserId) return;
+
+    for (const room of socket.rooms) {
+      if (typeof room === "string" && room.startsWith("org:")) socket.leave(room);
+    }
+
+    if (nextOrgId) {
+      socket.join(`org:${nextOrgId}`);
+      socket.emit("loadOrgTasks", await getOrgWorkItems(nextOrgId));
+    }
+  });
+
   socket.on("aiPrompt", async ({ taskId, prompt, model }) => {
     if (!taskId || !prompt) return;
 
-    const { data: task } = await supabase
+    const { data: task, error: readErr } = await supabase
       .from("tasks")
       .select("ai_history,user_id")
       .eq("id", taskId)
       .single();
 
+    if (readErr) {
+      console.error("aiPrompt read task error:", readErr);
+      return;
+    }
+
     const history = Array.isArray(task?.ai_history) ? [...task.ai_history] : [];
     history.push({ role: "user", content: prompt });
 
-    await supabase
+    const { error: up1 } = await supabase
       .from("tasks")
       .update({ ai_status: "thinking", ai_history: history })
       .eq("id", taskId);
+
+    if (up1) console.error("aiPrompt update thinking error:", up1);
 
     await emitPersonalTasks(task.user_id);
 
@@ -258,7 +265,7 @@ io.on("connection", async (socket) => {
 
     history.push({ role: "assistant", content: output });
 
-    await supabase
+    const { error: up2 } = await supabase
       .from("tasks")
       .update({
         ai_history: history,
@@ -269,6 +276,8 @@ io.on("connection", async (socket) => {
         updated_at: new Date().toISOString(),
       })
       .eq("id", taskId);
+
+    if (up2) console.error("aiPrompt update done error:", up2);
 
     await emitPersonalTasks(task.user_id);
   });
