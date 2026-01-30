@@ -403,24 +403,36 @@ export default function LoginPage() {
             </form>
 
             {/* Footer */}
-            <div className="form-footer">
-              <div className="footer-links">
-                <a href="#" className="footer-link">
-                  Privacy Policy
-                </a>
-                <span className="footer-separator">•</span>
-                <a href="#" className="footer-link">
-                  Terms of Service
-                </a>
-                <span className="footer-separator">•</span>
-                <a href="#" className="footer-link">
-                  Help Center
-                </a>
-              </div>
-              <p className="footer-copyright">
-                © 2026 KIRO Workspace Management. All rights reserved.
-              </p>
-            </div>
+            <div className="footer-links">
+  <button
+    type="button"
+    className="footer-link"
+    onClick={() => window.open("https://www.privacypolicies.com/live/", "_blank", "noopener,noreferrer")}
+  >
+    Privacy Policy
+  </button>
+
+  <span className="footer-separator">•</span>
+
+  <button
+    type="button"
+    className="footer-link"
+    onClick={() => window.open("https://www.termsfeed.com/blog/sample-terms-and-conditions-template/", "_blank", "noopener,noreferrer")}
+  >
+    Terms of Service
+  </button>
+
+  <span className="footer-separator">•</span>
+
+  <button
+    type="button"
+    className="footer-link"
+    onClick={() => window.open("https://support.google.com/", "_blank", "noopener,noreferrer")}
+  >
+    Help Center
+  </button>
+</div>
+
           </div>
         </div>
       </div>

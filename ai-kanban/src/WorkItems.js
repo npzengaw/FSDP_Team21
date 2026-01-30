@@ -116,7 +116,7 @@ export default function WorkItems({ user, profile }) {
   // =========================================================
   // ✅ LIVE TASKS VIA SOCKET (PERSONAL + ORG)
   // =========================================================
-  useEffect(() => {
+useEffect(() => {
   if (!user) return;
 
   setLoading(true);
@@ -130,11 +130,9 @@ export default function WorkItems({ user, profile }) {
       timeout: 5000,
       query: {
         userId: user.id,
-        orgId: isOrgMode ? orgId : undefined,
       },
     });
   }
-
 
   const s = socketRef.current;
 
@@ -148,18 +146,21 @@ export default function WorkItems({ user, profile }) {
   s.on("loadOrgTasks", onLoad);
   s.on("updateOrgTasks", onLoad);
 
-  s.on("connect_error", (e) => {
+  const onErr = (e) => {
     console.log("❌ WorkItems socket error:", e?.message || e);
     setLoading(false);
-  });
+  };
+  s.on("connect_error", onErr);
 
   return () => {
     s.off("loadTasks", onLoad);
     s.off("updateTasks", onLoad);
     s.off("loadOrgTasks", onLoad);
     s.off("updateOrgTasks", onLoad);
+    s.off("connect_error", onErr);
   };
 }, [user]);
+
 
 useEffect(() => {
   if (!socketRef.current || !user) return;
