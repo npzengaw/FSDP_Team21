@@ -120,7 +120,9 @@ function KanbanBoard({ socket, user, profile }) {
   useEffect(() => {
     const loadModels = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/models");
+        const SERVER_URL = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
+        const res = await fetch(`${SERVER_URL}/api/models`);
+
         const json = await res.json();
 
         const list = Array.isArray(json.models) ? json.models : [];

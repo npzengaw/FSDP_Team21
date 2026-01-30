@@ -13,50 +13,64 @@ const { handleAIChat } = require("../src/aiChat.js");
 // ✅ Node 18+ (including Node 24) has global fetch built-in.
 // No node-fetch needed.
 
-const ALLOWED_ORIGINS = [
+const ALLOWED_ORIGINS = new Set([
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-];
+  "https://YOUR_PROD_DOMAIN.vercel.app",
+]);
 
-// ====================== EXPRESS ======================
 const app = express();
-
-app.use(
-  cors({
-    origin: ALLOWED_ORIGINS,
-    credentials: true,
-    methods: ["GET", "POST", "OPTIONS"],
-  })
-);
 app.use(express.json());
 
-// Optional health check
-app.get("/health", (_, res) => res.send("ok"));
-
-// ✅ Don’t register the same route twice.
-// Pick one, OR give them different endpoints:
-app.post("/api/ai/chat", handleAIChat);
-
-// ====================== SUPABASE ======================
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
 
-// ====================== SERVER + SOCKET ======================
+app.get("/health", (_, res) => res.send("ok"));
+
+
 const server = http.createServer(app);
 
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // allow server-to-server / curl
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+
+  // allow all Vercel preview deployments
+  if (/^https:\/\/.*\.vercel\.app$/.test(origin)) return true;
+
+  return false;
+};
+
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (isAllowedOrigin(origin)) return cb(null, true);
+      return cb(new Error(`CORS blocked origin: ${origin}`));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "OPTIONS"],
+  })
+);
+
+
+// ====================== SERVER + SOCKET ======================
 const io = new Server(server, {
   cors: {
-    origin: ALLOWED_ORIGINS,
+    origin: (origin, cb) => {
+      if (isAllowedOrigin(origin)) return cb(null, true);
+      return cb(new Error(`Socket CORS blocked origin: ${origin}`));
+    },
     methods: ["GET", "POST"],
     credentials: true,
   },
   transports: ["polling", "websocket"],
-  maxHttpBufferSize: 5e6, // 5MB
+  maxHttpBufferSize: 5e6,
 });
+
 
 // ====================== AI MODELS ======================
 const ALLOWED_MODELS = [
@@ -188,6 +202,26 @@ supabase
 io.on("connection", async (socket) => {
   const { userId, orgId } = socket.handshake.query;
 
+  socket.on("rejoin", async ({ userId: incomingUserId, orgId: nextOrgId }) => {
+  const currentUserId = String(socket.handshake.query.userId || "");
+
+  if (!incomingUserId || String(incomingUserId) !== currentUserId) return;
+
+  // leave any previous org rooms
+  for (const room of socket.rooms) {
+    if (typeof room === "string" && room.startsWith("org:")) {
+      socket.leave(room);
+    }
+  }
+
+  // join new org room (or none)
+  if (nextOrgId) {
+    socket.join(`org:${nextOrgId}`);
+    socket.emit("loadOrgTasks", await getOrgWorkItems(nextOrgId));
+  }
+});
+
+
   if (!userId) {
     socket.disconnect(true);
     return;
@@ -246,6 +280,6 @@ io.on("connection", async (socket) => {
 
 // ====================== START ======================
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });

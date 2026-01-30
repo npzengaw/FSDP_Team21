@@ -121,18 +121,25 @@ useEffect(() => {
 
   setLoading(true);
 
-  if (!socketRef.current) {
-    socketRef.current = io("http://localhost:5000", {
-      transports: ["polling", "websocket"],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 500,
-      timeout: 5000,
-      query: {
-        userId: user.id,
-      },
-    });
+  const SERVER_URL = process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
+
+  // always recreate when org changes
+  if (socketRef.current) {
+    socketRef.current.disconnect();
+    socketRef.current = null;
   }
+
+  socketRef.current = io(SERVER_URL, {
+    transports: ["polling", "websocket"],
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 500,
+    timeout: 5000,
+    query: {
+      userId: user.id,
+      orgId: isOrgMode ? orgId : undefined,
+    },
+  });
 
   const s = socketRef.current;
 
@@ -141,35 +148,39 @@ useEffect(() => {
     setLoading(false);
   };
 
-  s.on("loadTasks", onLoad);
-  s.on("updateTasks", onLoad);
-  s.on("loadOrgTasks", onLoad);
-  s.on("updateOrgTasks", onLoad);
-
   const onErr = (e) => {
     console.log("❌ WorkItems socket error:", e?.message || e);
     setLoading(false);
   };
+
+  s.on("loadTasks", onLoad);
+  s.on("updateTasks", onLoad);
+  s.on("loadOrgTasks", onLoad);
+  s.on("updateOrgTasks", onLoad);
   s.on("connect_error", onErr);
 
   return () => {
-    s.off("loadTasks", onLoad);
-    s.off("updateTasks", onLoad);
-    s.off("loadOrgTasks", onLoad);
-    s.off("updateOrgTasks", onLoad);
-    s.off("connect_error", onErr);
-  };
-}, [user]);
+  s.off("loadTasks", onLoad);
+  s.off("updateTasks", onLoad);
+  s.off("loadOrgTasks", onLoad);
+  s.off("updateOrgTasks", onLoad);
+  s.off("connect_error", onErr);
+  s.disconnect();
+};
+}, [user, orgId, isOrgMode]);
+
 
 
 useEffect(() => {
-  if (!socketRef.current || !user) return;
+  const s = socketRef.current;
+  if (!s || !user || !s.connected) return;
 
-  socketRef.current.emit("rejoin", {
+  s.emit("rejoin", {
     userId: user.id,
     orgId: isOrgMode ? orgId : null,
   });
 }, [user, orgId, isOrgMode]);
+
 
 
   // =========================================================
