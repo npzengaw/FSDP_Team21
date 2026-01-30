@@ -1,3 +1,4 @@
+
 // src/App.js
 import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -16,6 +17,7 @@ import { LocaleProvider } from "./LocaleContext";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import TimelineView from "./TimelineView";
 import OrganisationDashboard from "./pages/OrganisationDashboard";
+import Chat from "./Chat";
 
 import { supabase } from "./supabaseClient";
 
@@ -255,6 +257,8 @@ export default function App() {
               )
             }
           />
+        {/* CHAT */}
+        <Route path="/chat" element={<Chat />} />
 
           {/* CATCH-ALL */}
           <Route path="*" element={<Navigate to={user ? "/home" : "/"} />} />

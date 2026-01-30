@@ -282,6 +282,10 @@ export default function OrganisationDashboard({ user, profile }) {
             Kanban Board
           </button>
 
+            <button className="nav-btn" onClick={() => navigate("/chat")}>
+              Chat
+            </button>
+
           <button className="nav-btn nav-btn-secondary" onClick={logout}>
             <svg
               viewBox="0 0 24 24"

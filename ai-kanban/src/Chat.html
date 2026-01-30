@@ -1,0 +1,64 @@
+
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Interface</title>
+  <link rel="stylesheet" href="Chat.css">
+</head>
+<body>
+  <div class="chat-container">
+
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">
+          <h2>Chat</h2>
+          <button class="add-chat-btn">+</button>
+        </div>
+        <div class="search-bar">
+          <input type="text" placeholder="Search..." id="searchInput">
+        </div>
+      </div>
+      <div class="conversations-list" id="conversationsList">
+
+      </div>
+    </div>
+
+
+    <div class="chat-main">
+
+      <div class="chat-header">
+        <div class="chat-user-info">
+          <div class="chat-user-avatar" id="headerAvatar"></div>
+          <div class="chat-user-details">
+            <h3 id="activeChatName">Select a conversation</h3>
+            <div class="chat-user-status" id="activeChatStatus"></div>
+          </div>
+        </div>
+        <div class="chat-actions">
+          <button class="action-btn" title="Search">🔍</button>
+          <button class="action-btn" title="Settings">⚙️</button>
+        </div>
+      </div>
+
+
+      <div class="messages-area" id="messagesArea">
+
+      </div>
+
+
+      <div class="input-area">
+        <button class="input-btn" title="Add">➕</button>
+        <div class="message-input-wrapper">
+          <textarea class="message-input" placeholder="Type a message..." rows="1" id="messageInput"></textarea>
+        </div>
+        <button class="input-btn" title="Microphone">🎤</button>
+        <button class="input-btn send-btn" title="Send" id="sendBtn">📩</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="Chat.js"></script>
+</body>
+</html>
