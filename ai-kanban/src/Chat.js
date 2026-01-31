@@ -455,38 +455,44 @@ export default function Chat() {
     setText("");
     setTimeout(() => scrollToBottom(true), 0);
 
-    try {
-      const res = await fetch("http://localhost:5000/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: user.id, message: trimmed }),
-      });
+try {
+  const API_BASE =
+    process.env.REACT_APP_SERVER_URL ||
+    process.env.REACT_APP_API_URL ||
+    "http://localhost:5000";
 
-      const data = await res.json();
+  const res = await fetch(`${API_BASE}/api/ai/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId: user.id, message: trimmed }),
+  });
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `ai-${Date.now()}`,
-          text: res.ok ? data.reply : data?.error || "AI error",
-          sent: false,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+  const data = await res.json().catch(() => ({}));
 
-      setTimeout(() => scrollToBottom(true), 30);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `ai-error-${Date.now()}`,
-          text: "AI is unavailable right now.",
-          sent: false,
-          created_at: new Date().toISOString(),
-        },
-      ]);
-    }
-  };
+  setMessages((prev) => [
+    ...prev,
+    {
+      id: `ai-${Date.now()}`,
+      text: res.ok ? data.reply : `AI error: ${data?.error || res.status}`,
+      sent: false,
+      created_at: new Date().toISOString(),
+    },
+  ]);
+
+  setTimeout(() => scrollToBottom(true), 30);
+} catch (err) {
+  console.error("AI fetch failed:", err);
+
+  setMessages((prev) => [
+    ...prev,
+    {
+      id: `ai-error-${Date.now()}`,
+      text: `AI is unavailable: ${err?.message || "network error"}`,
+      sent: false,
+      created_at: new Date().toISOString(),
+    },
+  ]);
+}
 
   // -------------------------
   // Modal: search users
@@ -954,4 +960,4 @@ export default function Chat() {
       )}
     </div>
   );
-}
+  }}
