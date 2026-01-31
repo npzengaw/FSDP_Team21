@@ -439,60 +439,61 @@ export default function Chat() {
   };
 
   // -------------------------
-  // Send message (AI)
-  // -------------------------
-  const sendAIMessage = async () => {
-    const trimmed = text.trim();
-    if (!trimmed || !user) return;
+// Send message (AI)
+// -------------------------
+const sendAIMessage = async () => {
+  const trimmed = text.trim();
+  if (!trimmed || !user) return;
 
-    const nowIso = new Date().toISOString();
+  const nowIso = new Date().toISOString();
+
+  setMessages((prev) => [
+    ...prev,
+    { id: `u-${Date.now()}`, text: trimmed, sent: true, created_at: nowIso },
+  ]);
+
+  setText("");
+  setTimeout(() => scrollToBottom(true), 0);
+
+  try {
+    const API_BASE =
+      process.env.REACT_APP_SERVER_URL ||
+      process.env.REACT_APP_API_URL ||
+      "http://localhost:5000";
+
+    const res = await fetch(`${API_BASE}/api/ai/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: user.id, message: trimmed }),
+    });
+
+    const data = await res.json().catch(() => ({}));
 
     setMessages((prev) => [
       ...prev,
-      { id: `u-${Date.now()}`, text: trimmed, sent: true, created_at: nowIso },
+      {
+        id: `ai-${Date.now()}`,
+        text: res.ok ? data.reply : `AI error: ${data?.error || res.status}`,
+        sent: false,
+        created_at: new Date().toISOString(),
+      },
     ]);
 
-    setText("");
-    setTimeout(() => scrollToBottom(true), 0);
+    setTimeout(() => scrollToBottom(true), 30);
+  } catch (err) {
+    console.error("AI fetch failed:", err);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `ai-error-${Date.now()}`,
+        text: `AI unavailable: ${err?.message || "network error"}`,
+        sent: false,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  }
+};
 
-try {
-  const API_BASE =
-    process.env.REACT_APP_SERVER_URL ||
-    process.env.REACT_APP_API_URL ||
-    "http://localhost:5000";
-
-  const res = await fetch(`${API_BASE}/api/ai/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionId: user.id, message: trimmed }),
-  });
-
-  const data = await res.json().catch(() => ({}));
-
-  setMessages((prev) => [
-    ...prev,
-    {
-      id: `ai-${Date.now()}`,
-      text: res.ok ? data.reply : `AI error: ${data?.error || res.status}`,
-      sent: false,
-      created_at: new Date().toISOString(),
-    },
-  ]);
-
-  setTimeout(() => scrollToBottom(true), 30);
-} catch (err) {
-  console.error("AI fetch failed:", err);
-
-  setMessages((prev) => [
-    ...prev,
-    {
-      id: `ai-error-${Date.now()}`,
-      text: `AI is unavailable: ${err?.message || "network error"}`,
-      sent: false,
-      created_at: new Date().toISOString(),
-    },
-  ]);
-}
 
   // -------------------------
   // Modal: search users
@@ -960,4 +961,4 @@ try {
       )}
     </div>
   );
-  }}
+}
