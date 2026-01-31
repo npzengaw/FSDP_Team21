@@ -7,6 +7,32 @@ console.log("✅ runAIAgent type =", typeof runAIAgent);
 // In-memory session store
 const sessions = new Map();
 
+
+async function runAIAgent(prompt) {
+  if (!process.env.OPENROUTER_API_KEY) {
+    throw new Error("Missing OPENROUTER_API_KEY");
+  }
+
+  const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: process.env.OPENROUTER_MODEL || "anthropic/claude-3-haiku",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.4,
+    }),
+  });
+
+  if (!resp.ok) throw new Error(`OpenRouter ${resp.status}: ${await resp.text()}`);
+  const data = await resp.json();
+  return data?.choices?.[0]?.message?.content ?? "";
+}
+
+
+
 async function handleAIChat(req, res) {
   const { sessionId, message } = req.body || {};
 
